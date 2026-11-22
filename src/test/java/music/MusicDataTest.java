@@ -13,6 +13,7 @@ public final class MusicDataTest {
 
     public static void main(String[] args) throws IOException {
         testDomainValidation();
+        testEventTable();
         Path dir = Files.createTempDirectory("music-data-test");
         Path catalog = dir.resolve("catalog.tsv");
         Path history = dir.resolve("history.tsv");
@@ -49,6 +50,31 @@ public final class MusicDataTest {
             Files.deleteIfExists(history);
             Files.deleteIfExists(catalog);
             Files.deleteIfExists(dir);
+        }
+    }
+
+    private static void testEventTable() throws IOException {
+        Path file = Files.createTempFile("plays", ".tsv");
+        List<Track> catalog = List.of(new Track("t1", "Title", "Artist", "Genre"));
+        String header = "user_id\ttrack_id\tplayed_at\n";
+        String row = "u1\tt1\t2026-01-01T00:00:00Z\n";
+        try {
+            Files.writeString(file, header + row + "u1\tt1\t2025-12-31T19:00:00-05:00\n");
+            var plays = MusicData.loadEvents(file, catalog);
+            var expected = new MusicData.PlayEvent("u1", "t1", java.time.Instant.parse("2026-01-01T00:00:00Z"));
+            check(plays.equals(List.of(expected, expected)), "Preserve repeated plays and normalize offsets");
+            for (String invalid : List.of("t2\t2026-01-01T00:00:00Z", "t1\t2026-01-01T00:00:00",
+                    "t1\t2026-02-30T00:00:00Z")) {
+                Files.writeString(file, header + row + "u1\t" + invalid + "\n");
+                try {
+                    MusicData.loadEvents(file, catalog);
+                    throw new AssertionError("Accepted invalid event " + invalid);
+                } catch (IOException error) {
+                    check(error.getMessage().startsWith(file + ":3:"), "Missing event location: " + error);
+                }
+            }
+        } finally {
+            Files.deleteIfExists(file);
         }
     }
 

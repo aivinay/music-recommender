@@ -5,6 +5,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -61,6 +64,28 @@ public record MusicData(List<Track> tracks, List<Listening> history) {
             Path file = error.inCatalog ? catalog : history;
             throw new IOException(file + ":" + error.line + ": " + error.getMessage(), error);
         }
+    }
+
+    /** One play in a chronological evaluation, with the supplied offset resolved to UTC. */
+    public record PlayEvent(String userId, String trackId, Instant playedAt) {}
+
+    public static List<PlayEvent> loadEvents(Path events, List<Track> catalog) throws IOException {
+        Set<String> trackIds = new HashSet<>();
+        for (Track track : catalog) {
+            trackIds.add(track.id());
+        }
+        return List.copyOf(readTable(events, "user_id\ttrack_id\tplayed_at", fields -> {
+            if (!trackIds.contains(fields[1])) {
+                throw new IllegalArgumentException("Unknown track ID '" + fields[1] + "'");
+            }
+            try {
+                Instant playedAt = OffsetDateTime.parse(fields[2]).toInstant();
+                return new PlayEvent(fields[0], fields[1], playedAt);
+            } catch (DateTimeParseException error) {
+                throw new IllegalArgumentException("Expected ISO-8601 played_at with an explicit UTC offset, found '"
+                        + fields[2] + "'", error);
+            }
+        }));
     }
 
     private static int parsePlays(String value) {
