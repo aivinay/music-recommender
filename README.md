@@ -68,7 +68,7 @@ To request at most one track per artist, run `java -jar build/music-recommender.
 Pass `--feedback FILE` to `recommend` to skip tracks for a particular listener. The UTF-8 TSV has two columns, `user_id` and `track_id`, with one hidden pair per row. From the repository root, try:
 
 ```sh
-printf 'user_id\ttrack_id\nmaya\tt04\n' > example-feedback.tsv
+java -jar build/music-recommender.jar hide maya t04 --feedback example-feedback.tsv
 java -jar build/music-recommender.jar recommend maya --feedback example-feedback.tsv
 ```
 

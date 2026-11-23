@@ -2,9 +2,13 @@ package music;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
@@ -100,23 +104,63 @@ public record MusicData(List<Track> tracks, List<Listening> history) {
 
     /** Reads hidden tracks for one listener from a shared feedback table. */
     static Set<String> loadHiddenTracks(Path feedback, String userId, List<Track> catalog) throws IOException {
-        Set<String> trackIds = new HashSet<>();
-        for (Track track : catalog) {
-            trackIds.add(track.id());
-        }
-        List<UserTrack> rows = readTable(feedback, "user_id\ttrack_id", fields -> {
-            if (!trackIds.contains(fields[1])) {
-                throw new IllegalArgumentException("Unknown track ID '" + fields[1] + "'");
-            }
-            return new UserTrack(fields[0], fields[1]);
-        });
         Set<String> hidden = new HashSet<>();
-        for (UserTrack row : rows) {
+        for (UserTrack row : readFeedback(feedback, catalog)) {
             if (row.userId().equals(userId)) {
                 hidden.add(row.trackId());
             }
         }
         return hidden;
+    }
+
+    private static List<UserTrack> readFeedback(Path feedback, List<Track> catalog) throws IOException {
+        Set<String> trackIds = new HashSet<>();
+        for (Track track : catalog) {
+            trackIds.add(track.id());
+        }
+        return readTable(feedback, "user_id\ttrack_id", fields -> {
+            if (!trackIds.contains(fields[1])) {
+                throw new IllegalArgumentException("Unknown track ID '" + fields[1] + "'");
+            }
+            return new UserTrack(fields[0], fields[1]);
+        });
+    }
+
+    static synchronized void hideTrack(Path feedback, String user, String trackId, List<Track> catalog)
+            throws IOException {
+        if (user.isBlank() || !user.equals(user.strip()) || user.chars().anyMatch(c -> c == '\t' || c == '\n' || c == '\r')) {
+            throw new IllegalArgumentException("Listener ID must fit in one feedback field");
+        }
+        if (catalog.stream().noneMatch(track -> track.id().equals(trackId))) {
+            throw new IllegalArgumentException("Unknown track ID '" + trackId + "'");
+        }
+        Path target = feedback.toAbsolutePath();
+        if (Files.isSymbolicLink(target)) target = target.toRealPath();
+        Path lock = target.resolveSibling(target.getFileName() + ".lock");
+        try (var channel = FileChannel.open(lock, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+             var held = channel.lock()) {
+            List<UserTrack> rows;
+            try {
+                rows = readFeedback(target, catalog);
+            } catch (NoSuchFileException absent) {
+                rows = new ArrayList<>();
+            }
+            UserTrack entry = new UserTrack(user, trackId);
+            if (rows.contains(entry)) return;
+            rows.add(entry);
+            Path temp = Files.createTempFile(target.getParent(), ".feedback-", ".tmp");
+            try {
+                try (var writer = Files.newBufferedWriter(temp, StandardCharsets.UTF_8)) {
+                    writer.write("user_id\ttrack_id\n");
+                    for (UserTrack row : rows) {
+                        writer.write(row.userId() + "\t" + row.trackId() + "\n");
+                    }
+                }
+                Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } finally {
+                Files.deleteIfExists(temp);
+            }
+        }
     }
 
     private static int parsePlays(String value) {

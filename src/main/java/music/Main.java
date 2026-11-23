@@ -15,6 +15,7 @@ public final class Main {
             Usage: java -jar music-recommender.jar <command> [options]
 
               recommend USER    Rank unheard tracks for a listener
+              hide USER TRACK   Hide a track for one listener (requires --feedback)
               serve             Serve JSON recommendations on loopback
               evaluate          Compare personalized and popularity rankings
 
@@ -45,13 +46,20 @@ public final class Main {
 
         try {
             String user = null;
+            String toHide = null;
             int next = 1;
             switch (args[0]) {
-                case "recommend" -> {
+                case "recommend", "hide" -> {
                     if (args.length < 2 || args[1].isBlank() || args[1].startsWith("--")) {
-                        throw new IllegalArgumentException("recommend requires a listener ID");
+                        throw new IllegalArgumentException(args[0] + " requires a listener ID");
                     }
                     user = args[next++];
+                    if (args[0].equals("hide")) {
+                        if (next == args.length || args[next].startsWith("--")) {
+                            throw new IllegalArgumentException("hide requires a track ID");
+                        }
+                        toHide = args[next++];
+                    }
                 }
                 case "serve", "evaluate" -> { }
                 default -> throw new IllegalArgumentException("unknown command: " + args[0]);
@@ -71,6 +79,9 @@ public final class Main {
                     throw new IllegalArgumentException("missing value for " + option);
                 }
                 String value = args[next++];
+                if (toHide != null && !option.equals("--tracks") && !option.equals("--feedback")) {
+                    throw new IllegalArgumentException("Unsupported hide option: " + option);
+                }
                 switch (option) {
                     case "--tracks" -> tracks = Path.of(value);
                     case "--listens" -> listens = Path.of(value);
@@ -104,6 +115,11 @@ public final class Main {
                 }
             }
 
+            if (toHide != null) {
+                if (feedback == null) throw new IllegalArgumentException("hide requires --feedback FILE");
+                MusicData.hideTrack(feedback, user, toHide, MusicData.loadCatalog(tracks));
+                return 0;
+            }
             if (events != null || cutoff != null) {
                 if (!args[0].equals("evaluate") || events == null || cutoff == null || listens != null) {
                     throw new IllegalArgumentException("Use --events and --cutoff together with evaluate, without --listens");

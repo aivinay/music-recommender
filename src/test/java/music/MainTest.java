@@ -52,6 +52,13 @@ public final class MainTest {
 
             String[] withFeedback = {"recommend", "new", "--tracks", tracks.toString(), "--listens",
                     listens.toString(), "--feedback", feedback.toString(), "--limit", "1"};
+            String[] hide = {"hide", "new", "s1", "--tracks", tracks.toString(), "--feedback", feedback.toString()};
+            check(run(hide).status() == 0 && run(hide).status() == 0, "Repeat hide succeeds");
+            String saved = Files.readString(feedback);
+            check(saved.equals("user_id\ttrack_id\nnew\ts1\n") && run(withFeedback).out().contains("1\ts2\t"),
+                    "One persisted hide filters the next invocation");
+            check(run("hide", "new", "unknown", "--tracks", tracks.toString(), "--feedback", feedback.toString())
+                    .status() != 0 && saved.equals(Files.readString(feedback)), "Unknown track preserves feedback");
             String header = "user_id\ttrack_id\n";
             Files.writeString(feedback, header + "new\ts1\nnew\ts1\nother\ts2\n");
             Result filtered = run(withFeedback);
@@ -71,6 +78,7 @@ public final class MainTest {
             check(eval.status() == 0 && eval.out().contains("personalized\t1.000\t1.000")
                     && eval.out().contains("popularity\t1.000\t1.000"), "Metrics for both models");
         } finally {
+            Files.deleteIfExists(feedback.resolveSibling("feedback.tsv.lock"));
             Files.deleteIfExists(feedback);
             Files.deleteIfExists(listens);
             Files.deleteIfExists(tracks);
