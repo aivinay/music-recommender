@@ -30,6 +30,7 @@ public final class MainTest {
         Path dir = Files.createTempDirectory("music-cli");
         Path tracks = dir.resolve("tracks.tsv");
         Path listens = dir.resolve("listens.tsv");
+        Path feedback = dir.resolve("feedback.tsv");
         try {
             Files.writeString(tracks, "id\ttitle\tartist\tgenre\ns1\tOne\tDuo\tJazz\ns2\tTwo\tDuo\tJazz\n");
             Files.writeString(listens, "user_id\ttrack_id\tplays\nalex\ts1\t8\n");
@@ -49,6 +50,20 @@ public final class MainTest {
             check(result.out().lines().count() == 2 && result.out().contains("1\ts2\tTwo\tDuo\tJazz\t"),
                     "Ranked TSV output includes the unheard song");
 
+            String[] withFeedback = {"recommend", "new", "--tracks", tracks.toString(), "--listens",
+                    listens.toString(), "--feedback", feedback.toString(), "--limit", "1"};
+            String header = "user_id\ttrack_id\n";
+            Files.writeString(feedback, header + "new\ts1\nnew\ts1\nother\ts2\n");
+            Result filtered = run(withFeedback);
+            check(filtered.status() == 0 && filtered.out().contains("1\ts2\t"),
+                    "Duplicate hides and another listener's feedback leave the next track available");
+            Files.writeString(feedback, header + "new\ts1\nnew\ts2\n");
+            check(run(withFeedback).out().contains("No unheard tracks"), "Entire catalog hidden");
+            Files.writeString(feedback, header + "new\ts1\nother\tmissing\n");
+            Result invalid = run(withFeedback);
+            check(invalid.status() == 1 && invalid.err().contains(feedback + ":3:")
+                    && invalid.err().contains("missing"), "Unknown feedback track includes file and line");
+
             Files.writeString(listens, "user_id\ttrack_id\tplays\nalex\ts1\t8\nalex\ts2\t2\n");
             check(run(recommend).out().contains("No unheard tracks"), "Entire catalog heard");
             Result eval = run("evaluate", "--tracks", tracks.toString(), "--listens", listens.toString(),
@@ -56,6 +71,7 @@ public final class MainTest {
             check(eval.status() == 0 && eval.out().contains("personalized\t1.000\t1.000")
                     && eval.out().contains("popularity\t1.000\t1.000"), "Metrics for both models");
         } finally {
+            Files.deleteIfExists(feedback);
             Files.deleteIfExists(listens);
             Files.deleteIfExists(tracks);
             Files.delete(dir);

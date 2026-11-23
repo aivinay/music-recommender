@@ -98,6 +98,27 @@ public record MusicData(List<Track> tracks, List<Listening> history) {
         }));
     }
 
+    /** Reads hidden tracks for one listener from a shared feedback table. */
+    static Set<String> loadHiddenTracks(Path feedback, String userId, List<Track> catalog) throws IOException {
+        Set<String> trackIds = new HashSet<>();
+        for (Track track : catalog) {
+            trackIds.add(track.id());
+        }
+        List<UserTrack> rows = readTable(feedback, "user_id\ttrack_id", fields -> {
+            if (!trackIds.contains(fields[1])) {
+                throw new IllegalArgumentException("Unknown track ID '" + fields[1] + "'");
+            }
+            return new UserTrack(fields[0], fields[1]);
+        });
+        Set<String> hidden = new HashSet<>();
+        for (UserTrack row : rows) {
+            if (row.userId().equals(userId)) {
+                hidden.add(row.trackId());
+            }
+        }
+        return hidden;
+    }
+
     private static int parsePlays(String value) {
         try {
             return Integer.parseInt(value);

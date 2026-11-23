@@ -63,6 +63,17 @@ java -jar build/music-recommender.jar recommend listener-42 \
 
 To request at most one track per artist, run `java -jar build/music-recommender.jar recommend maya --limit 5 --max-per-artist 1`. The cap applies to personalized and popularity rankings, matches artist names case-insensitively, and can yield a shorter list when too few artists qualify. Java callers can use `model.recommend("maya", 5, 1)`.
 
+### Hide tracks using a feedback file
+
+Pass `--feedback FILE` to `recommend` to skip tracks for a particular listener. The UTF-8 TSV has two columns, `user_id` and `track_id`, with one hidden pair per row. From the repository root, try:
+
+```sh
+printf 'user_id\ttrack_id\nmaya\tt04\n' > example-feedback.tsv
+java -jar build/music-recommender.jar recommend maya --feedback example-feedback.tsv
+```
+
+Maya's list skips *Paper Constellation* and fills the slot with the next eligible track. Other listeners can still receive it. Removing the row restores its eligibility under the usual ranking rules.
+
 ## Ranking
 
 The engine excludes tracks the listener has already played. For each remaining track it computes a weighted sum. The explanation names the largest contribution.

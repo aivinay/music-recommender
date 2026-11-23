@@ -8,6 +8,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Set;
 
 public final class Main {
     private static final String USAGE = """
@@ -23,6 +24,7 @@ public final class Main {
               --port N          HTTP port for serve (default 8080, 0 for ephemeral)
               --tracks FILE     Track catalog (default examples/tracks.tsv)
               --listens FILE    Listening history (default examples/listens.tsv)
+              --feedback FILE   Hidden tracks per listener for recommend
               --events FILE     Timestamped plays for chronological evaluation
               --cutoff TIME     Evaluation boundary with UTC offset (requires --events)
               --help            Show usage
@@ -58,6 +60,7 @@ public final class Main {
             Path tracks = Path.of("examples", "tracks.tsv");
             Path listens = null;
             Path events = null;
+            Path feedback = null;
             Instant cutoff = null;
             int limit = 5;
             int maxPerArtist = Integer.MAX_VALUE;
@@ -71,6 +74,10 @@ public final class Main {
                 switch (option) {
                     case "--tracks" -> tracks = Path.of(value);
                     case "--listens" -> listens = Path.of(value);
+                    case "--feedback" -> {
+                        if (user == null) throw new IllegalArgumentException("--feedback requires recommend");
+                        feedback = Path.of(value);
+                    }
                     case "--events" -> events = Path.of(value);
                     case "--cutoff" -> {
                         try {
@@ -126,7 +133,8 @@ public final class Main {
             } else if (user == null) {
                 printEvaluation(Evaluator.evaluate(data, limit), limit, out);
             } else {
-                var picks = new Recommender(data).recommend(user, limit, maxPerArtist);
+                Set<String> hidden = feedback == null ? Set.of() : MusicData.loadHiddenTracks(feedback, user, data.tracks());
+                var picks = new Recommender(data).recommend(user, limit, maxPerArtist, hidden);
                 if (picks.isEmpty()) {
                     out.println("No unheard tracks available.");
                 } else {
