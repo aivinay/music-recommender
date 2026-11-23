@@ -44,6 +44,14 @@ public final class Recommender {
 
     /** Returns at most limit unheard tracks, in descending score order with ties broken by ID. */
     public List<Recommendation> recommend(String userId, int limit) {
+        return recommend(userId, limit, Integer.MAX_VALUE);
+    }
+
+    /** Keeps at most maxPerArtist tracks per artist while preserving their ranking and scores. */
+    public List<Recommendation> recommend(String userId, int limit, int maxPerArtist) {
+        if (maxPerArtist < 1) {
+            throw new IllegalArgumentException("Maximum tracks per artist must be at least 1");
+        }
         if (userId == null || userId.isBlank()) {
             throw new IllegalArgumentException("User ID must not be blank");
         }
@@ -79,11 +87,23 @@ public final class Recommender {
                 candidates.add(new Recommendation(track, peer + genre + artist + baseline, reason));
             }
         }
-        return candidates.stream()
-                .sorted(Comparator.comparingDouble(Recommendation::score).reversed()
-                        .thenComparing(r -> r.track().id()))
-                .limit(limit)
-                .toList();
+        candidates.sort(Comparator.comparingDouble(Recommendation::score).reversed()
+                .thenComparing(r -> r.track().id()));
+        if (maxPerArtist >= limit) {
+            return List.copyOf(candidates.subList(0, Math.min(limit, candidates.size())));
+        }
+        Map<String, Integer> selectedByArtist = new HashMap<>();
+        List<Recommendation> selected = new ArrayList<>();
+        for (Recommendation candidate : candidates) {
+            String artist = key(candidate.track().artist());
+            int count = selectedByArtist.getOrDefault(artist, 0);
+            if (count < maxPerArtist) {
+                selectedByArtist.put(artist, count + 1);
+                selected.add(candidate);
+                if (selected.size() == limit) break;
+            }
+        }
+        return List.copyOf(selected);
     }
 
     private Map<String, Double> peerSupport(String userId, Map<String, Double> heard) {

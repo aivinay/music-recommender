@@ -13,6 +13,7 @@ public final class RecommenderTest {
 
     public static void main(String[] args) {
         ranksForNewListeners();
+        limitsTracksPerArtist();
         matchesGenreAndArtist();
         accountsForRepeatListens();
         discoversSongsThroughSimilarListeners();
@@ -34,6 +35,28 @@ public final class RecommenderTest {
         close(Math.log1p(6) / Math.log1p(7), result.get(1).score());
         close(0.0, result.get(2).score());
         equal(List.of("seed"), ids(engine.recommend("new", 1)));
+    }
+
+    private static void limitsTracksPerArtist() {
+        var tracks = List.of(new Track("a", "A", "North", "Jazz"), new Track("b", "B", "NORTH", "Jazz"),
+                new Track("c", "C", "north", "Jazz"), new Track("d", "D", "West", "Folk"), SEED);
+        var engine = model(tracks, List.of(new Listening("me", "seed", 1),
+                new Listening("other", "a", 12), new Listening("other", "b", 10),
+                new Listening("other", "c", 8)));
+        for (String user : List.of("me", "new")) {
+            var ranked = engine.recommend(user, 10);
+            var west = ranked.stream().filter(pick -> pick.track().id().equals("d")).findFirst().orElseThrow();
+            equal(List.of(ranked.get(0), west), engine.recommend(user, 3, 1));
+            equal(List.of(ranked.get(0), ranked.get(1), west), engine.recommend(user, 3, 2));
+        }
+        for (int cap : List.of(0, -1)) {
+            try {
+                engine.recommend("me", 3, cap);
+                throw new AssertionError("Accepted invalid artist limit " + cap);
+            } catch (IllegalArgumentException expected) {
+                // Only positive caps are supported.
+            }
+        }
     }
 
     private static void matchesGenreAndArtist() {
