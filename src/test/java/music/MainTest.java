@@ -33,6 +33,15 @@ public final class MainTest {
         try {
             Files.writeString(tracks, "id\ttitle\tartist\tgenre\ns1\tOne\tDuo\tJazz\ns2\tTwo\tDuo\tJazz\n");
             Files.writeString(listens, "user_id\ttrack_id\tplays\nalex\ts1\t8\n");
+            Result capped = run("recommend", "new", "--tracks", tracks.toString(), "--listens", listens.toString(),
+                    "--max-per-artist", "1");
+            check(capped.status() == 0 && capped.out().lines().count() == 2 && capped.out().contains("1\ts1\t"),
+                    "Artist cap keeps the more popular track");
+            for (String invalid : java.util.List.of("0", "-1", "NaN")) {
+                Result error = run("recommend", "maya", "--max-per-artist", invalid);
+                check(error.status() == 2 && error.err().contains("--max-per-artist"), "Invalid artist cap");
+            }
+            check(run("evaluate", "--max-per-artist", "1").status() == 2, "Artist cap requires recommend");
             String[] recommend = {"recommend", "alex", "--tracks", tracks.toString(),
                     "--listens", listens.toString(), "--limit", "1"};
             Result result = run(recommend);

@@ -19,6 +19,7 @@ public final class Main {
 
             Options:
               --limit N         Maximum recommendations (default 5)
+              --max-per-artist N  Maximum tracks per artist for recommend (default unlimited)
               --port N          HTTP port for serve (default 8080, 0 for ephemeral)
               --tracks FILE     Track catalog (default examples/tracks.tsv)
               --listens FILE    Listening history (default examples/listens.tsv)
@@ -59,6 +60,7 @@ public final class Main {
             Path events = null;
             Instant cutoff = null;
             int limit = 5;
+            int maxPerArtist = Integer.MAX_VALUE;
             int port = 8080;
             while (next < args.length) {
                 String option = args[next++];
@@ -86,7 +88,11 @@ public final class Main {
                             throw new IllegalArgumentException("--port requires an integer from 0 to 65535");
                         }
                     }
-                    case "--limit" -> limit = parseLimit(value);
+                    case "--max-per-artist" -> {
+                        if (user == null) throw new IllegalArgumentException("--max-per-artist requires recommend");
+                        maxPerArtist = parsePositive(option, value);
+                    }
+                    case "--limit" -> limit = parsePositive(option, value);
                     default -> throw new IllegalArgumentException("unknown option: " + option);
                 }
             }
@@ -120,7 +126,7 @@ public final class Main {
             } else if (user == null) {
                 printEvaluation(Evaluator.evaluate(data, limit), limit, out);
             } else {
-                var picks = new Recommender(data).recommend(user, limit);
+                var picks = new Recommender(data).recommend(user, limit, maxPerArtist);
                 if (picks.isEmpty()) {
                     out.println("No unheard tracks available.");
                 } else {
@@ -144,7 +150,7 @@ public final class Main {
         }
     }
 
-    private static int parseLimit(String value) {
+    private static int parsePositive(String option, String value) {
         try {
             int limit = Integer.parseInt(value);
             if (limit > 0) {
@@ -153,7 +159,7 @@ public final class Main {
         } catch (NumberFormatException ignored) {
             // Non-numeric and out-of-range values get the same usage hint.
         }
-        throw new IllegalArgumentException("--limit requires a positive integer");
+        throw new IllegalArgumentException(option + " requires a positive integer");
     }
 
     private static void printEvaluation(Evaluator.Report report, int limit, PrintStream out) {

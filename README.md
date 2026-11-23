@@ -61,6 +61,8 @@ java -jar build/music-recommender.jar recommend listener-42 \
   --tracks /path/to/tracks.tsv --listens /path/to/listens.tsv --limit 10
 ```
 
+To request at most one track per artist, run `java -jar build/music-recommender.jar recommend maya --limit 5 --max-per-artist 1`. The cap applies to personalized and popularity rankings, matches artist names case-insensitively, and can yield a shorter list when too few artists qualify. Java callers can use `model.recommend("maya", 5, 1)`.
+
 ## Ranking
 
 The engine excludes tracks the listener has already played. For each remaining track it computes a weighted sum. The explanation names the largest contribution.
