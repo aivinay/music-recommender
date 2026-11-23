@@ -3,6 +3,9 @@ package music;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -19,6 +22,8 @@ public final class Main {
               --port N          HTTP port for serve (default 8080, 0 for ephemeral)
               --tracks FILE     Track catalog (default examples/tracks.tsv)
               --listens FILE    Listening history (default examples/listens.tsv)
+              --events FILE     Timestamped plays for chronological evaluation
+              --cutoff TIME     Evaluation boundary with UTC offset (requires --events)
               --help            Show usage
             """;
 
@@ -50,7 +55,9 @@ public final class Main {
             }
 
             Path tracks = Path.of("examples", "tracks.tsv");
-            Path listens = Path.of("examples", "listens.tsv");
+            Path listens = null;
+            Path events = null;
+            Instant cutoff = null;
             int limit = 5;
             int port = 8080;
             while (next < args.length) {
@@ -62,6 +69,14 @@ public final class Main {
                 switch (option) {
                     case "--tracks" -> tracks = Path.of(value);
                     case "--listens" -> listens = Path.of(value);
+                    case "--events" -> events = Path.of(value);
+                    case "--cutoff" -> {
+                        try {
+                            cutoff = OffsetDateTime.parse(value).toInstant();
+                        } catch (DateTimeParseException e) {
+                            throw new IllegalArgumentException("--cutoff requires an ISO-8601 timestamp with UTC offset");
+                        }
+                    }
                     case "--port" -> {
                         if (!args[0].equals("serve")) throw new IllegalArgumentException("--port requires serve");
                         try {
@@ -76,7 +91,24 @@ public final class Main {
                 }
             }
 
-            MusicData data = MusicData.load(tracks, listens);
+            if (events != null || cutoff != null) {
+                if (!args[0].equals("evaluate") || events == null || cutoff == null || listens != null) {
+                    throw new IllegalArgumentException("Use --events and --cutoff together with evaluate, without --listens");
+                }
+                var catalog = MusicData.loadCatalog(tracks);
+                var report = Evaluator.evaluateDiscovery(catalog, MusicData.loadEvents(events, catalog), cutoff, limit);
+                out.println("Eligible listeners: " + report.rankings().listeners());
+                out.println("Skipped without training history: " + report.missingTraining());
+                out.println("Skipped without future discovery: " + report.missingDiscovery());
+                if (report.rankings().listeners() == 0) {
+                    out.println("No eligible listeners at this cutoff.");
+                } else {
+                    printMetrics(report.rankings(), limit, out);
+                }
+                return 0;
+            }
+
+            MusicData data = MusicData.load(tracks, listens == null ? Path.of("examples", "listens.tsv") : listens);
             if (args[0].equals("serve")) {
                 try {
                     var server = RecommendationServer.start(new Recommender(data), port, limit);
@@ -130,6 +162,10 @@ public final class Main {
             return;
         }
         out.println("Evaluated listeners: " + report.listeners());
+        printMetrics(report, limit, out);
+    }
+
+    private static void printMetrics(Evaluator.Report report, int limit, PrintStream out) {
         out.printf("model\thit_rate@%d\tmrr@%d%n", limit, limit);
         out.printf(Locale.ROOT, "personalized\t%.3f\t%.3f%n",
                 report.hitRate(), report.meanReciprocalRank());

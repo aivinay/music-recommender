@@ -53,9 +53,19 @@ public record MusicData(List<Track> tracks, List<Listening> history) {
         }
     }
 
+    static List<Track> loadCatalog(Path catalog) throws IOException {
+        Set<String> ids = new HashSet<>();
+        return readTable(catalog, "id\ttitle\tartist\tgenre", fields -> {
+            Track track = new Track(fields[0], fields[1], fields[2], fields[3]);
+            if (!ids.add(track.id())) {
+                throw new IllegalArgumentException("Duplicate track ID '" + track.id() + "'");
+            }
+            return track;
+        });
+    }
+
     public static MusicData load(Path catalog, Path history) throws IOException {
-        List<Track> tracks = readTable(catalog, "id\ttitle\tartist\tgenre",
-                fields -> new Track(fields[0], fields[1], fields[2], fields[3]));
+        List<Track> tracks = loadCatalog(catalog);
         List<Listening> events = readTable(history, "user_id\ttrack_id\tplays",
                 fields -> new Listening(fields[0], fields[1], parsePlays(fields[2])));
         try {

@@ -78,7 +78,15 @@ Log weighting uses `log(1 + plays)` to soften the influence of repeated plays. A
 
 `evaluate --limit K` hides one track per listener who has played at least two distinct tracks. It sorts each listener's track IDs and uses the listener ID to seed a reproducible choice. Both rankings use the same training data with all held-out plays removed. Both exclude tracks the listener still has in training.
 
-**HitRate@K** is the fraction of eligible listeners whose hidden track appears in their top K. **MRR@K** averages the reciprocal of its rank, counting a miss as zero. This split measures recovery of a known interest. Predicting the next play would require timestamped history.
+**HitRate@K** is the fraction of eligible listeners whose hidden track appears in their top K. **MRR@K** averages the reciprocal of its rank, counting a miss as zero. This split measures recovery of a known interest.
+
+To evaluate the next new track each listener discovers, use a UTF-8 TSV with one play per row and columns `user_id`, `track_id`, and `played_at`. Both timestamps and the cutoff take an explicit UTC offset.
+
+```sh
+java -jar build/music-recommender.jar evaluate --events examples/chronological-plays.tsv --cutoff 2026-01-01T00:00:00Z --limit 3
+```
+
+Both rankings train on plays strictly before the cutoff. In this example, Maya discovers two tracks at the cutoff. Track ID breaks the tie, making `t03` her target. Personalization ranks it first and popularity ranks it third, giving both a HitRate@3 of 1 and MRR@3 values of 1 and 1/3 respectively. Lee only repeats a track and the newcomer has no training plays, so both are skipped.
 
 ## Use from Java
 

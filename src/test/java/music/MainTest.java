@@ -14,6 +14,19 @@ public final class MainTest {
         check(run("recommend").status() != 0, "Missing listener");
         check(run("evaluate", "--tracks").status() != 0, "Missing option value");
 
+        String events = "examples/chronological-plays.tsv";
+        Result discovery = run("evaluate", "--events", events, "--cutoff", "2025-12-31T19:00:00-05:00", "--limit", "3");
+        check(discovery.status() == 0 && discovery.out().contains("Eligible listeners: 1")
+                && discovery.out().contains("Skipped without training history: 1")
+                && discovery.out().contains("Skipped without future discovery: 1")
+                && discovery.out().contains("personalized\t1.000\t1.000")
+                && discovery.out().contains("popularity\t1.000\t0.333"), "Chronological fixture metrics");
+        Result empty = run("evaluate", "--events", events, "--cutoff", "2000-01-01T00:00:00Z");
+        check(empty.status() == 0 && empty.out().contains("No eligible listeners"), "Empty split");
+        check(run("evaluate", "--events", events).status() == 2, "Missing cutoff");
+        check(run("evaluate", "--events", events, "--cutoff", "2026-01-01T00:00:00").status() == 2,
+                "Cutoff without offset");
+
         Path dir = Files.createTempDirectory("music-cli");
         Path tracks = dir.resolve("tracks.tsv");
         Path listens = dir.resolve("listens.tsv");
