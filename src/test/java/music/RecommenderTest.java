@@ -3,6 +3,7 @@ package music;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public final class RecommenderTest {
     private static final Track SEED = new Track("seed", "Night Train", "North", "Jazz");
@@ -14,6 +15,7 @@ public final class RecommenderTest {
     public static void main(String[] args) {
         ranksForNewListeners();
         limitsTracksPerArtist();
+        excludesHiddenTracks();
         matchesGenreAndArtist();
         accountsForRepeatListens();
         discoversSongsThroughSimilarListeners();
@@ -56,6 +58,23 @@ public final class RecommenderTest {
             } catch (IllegalArgumentException expected) {
                 // Only positive caps are supported.
             }
+        }
+    }
+
+    private static void excludesHiddenTracks() {
+        var engine = model(List.of(ARTIST, GENRE, HIT, SEED), List.of(new Listening("me", "seed", 4)));
+        for (String user : List.of("me", "new")) {
+            var full = engine.recommend(user, 4);
+            String firstId = full.get(0).track().id();
+            equal(full.subList(1, 3), engine.recommend(user, 2, 2, Set.of(firstId)));
+            equal(List.of(), engine.recommend(user, 2, 1, Set.of("seed", "artist", "genre", "hit")));
+            equal(full, engine.recommend(user, 4));
+        }
+        try {
+            engine.recommend("me", 1, 1, Set.of("missing"));
+            throw new AssertionError("Accepted an unknown hidden track");
+        } catch (IllegalArgumentException expected) {
+            equal(true, expected.getMessage().contains("missing"));
         }
     }
 

@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /** An in-memory recommender for a snapshot of a music catalog and listening history. */
@@ -49,6 +50,16 @@ public final class Recommender {
 
     /** Keeps at most maxPerArtist tracks per artist while preserving their ranking and scores. */
     public List<Recommendation> recommend(String userId, int limit, int maxPerArtist) {
+        return recommend(userId, limit, maxPerArtist, Set.of());
+    }
+
+    /** Excludes the requesting listener's hidden tracks before filling the result list. */
+    public List<Recommendation> recommend(String userId, int limit, int maxPerArtist, Set<String> hiddenTrackIds) {
+        for (String id : hiddenTrackIds) {
+            if (id == null || !catalog.containsKey(id)) {
+                throw new IllegalArgumentException("Unknown hidden track ID '" + id + "'");
+            }
+        }
         if (maxPerArtist < 1) {
             throw new IllegalArgumentException("Maximum tracks per artist must be at least 1");
         }
@@ -72,7 +83,7 @@ public final class Recommender {
         Map<String, Double> peers = heard.isEmpty() ? Map.of() : peerSupport(userId, heard);
         List<Recommendation> candidates = new ArrayList<>();
         for (Track track : catalog.values()) {
-            if (heard.containsKey(track.id())) {
+            if (heard.containsKey(track.id()) || hiddenTrackIds.contains(track.id())) {
                 continue;
             }
             double popular = popularity.getOrDefault(track.id(), 0.0);
