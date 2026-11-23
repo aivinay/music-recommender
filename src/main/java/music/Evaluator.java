@@ -1,5 +1,6 @@
 package music;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -10,37 +11,52 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 
-/** Reproducible leave-one-track-out evaluation on aggregated listening histories. */
+/** Evaluates personalized and popularity rankings against held-out tracks. */
 public final class Evaluator {
     private Evaluator() {}
 
     public record Report(int listeners, double hitRate, double meanReciprocalRank,
                          double popularityHitRate, double popularityMeanReciprocalRank) {}
 
+    public record DiscoveryReport(Report rankings, int missingTraining, int missingDiscovery) {}
+
+    public static DiscoveryReport evaluateDiscovery(List<Track> tracks, List<MusicData.PlayEvent> events,
+                                                    Instant cutoff, int limit) {
+        requirePositiveLimit(limit);
+        DiscoverySplit split = DiscoverySplit.from(events, cutoff);
+        Report rankings = score(new MusicData(tracks, split.training()), split.targets(), limit);
+        return new DiscoveryReport(rankings, split.missingTraining(), split.missingDiscovery());
+    }
+
     public static Report evaluate(MusicData data, int limit) {
+        requirePositiveLimit(limit);
+        Map<String, String> heldOut = selectHoldouts(data.history());
+        List<Listening> training = data.history().stream()
+                .filter(row -> !row.trackId().equals(heldOut.get(row.userId())))
+                .toList();
+        return score(new MusicData(data.tracks(), training), heldOut, limit);
+    }
+
+    private static void requirePositiveLimit(int limit) {
         if (limit < 1) {
             throw new IllegalArgumentException("limit must be positive");
         }
-        Map<String, String> heldOut = selectHoldouts(data.history());
+    }
+
+    private static Report score(MusicData training, Map<String, String> heldOut, int limit) {
         int listeners = heldOut.size();
         if (listeners == 0) {
             return new Report(0, 0, 0, 0, 0);
         }
-
-        List<Listening> training = new ArrayList<>();
         Map<String, Set<String>> heard = new HashMap<>();
         Map<String, Long> playCounts = new HashMap<>();
-        for (Listening row : data.history()) {
-            if (row.trackId().equals(heldOut.get(row.userId()))) {
-                continue;
-            }
-            training.add(row);
+        for (Listening row : training.history()) {
             heard.computeIfAbsent(row.userId(), key -> new HashSet<>()).add(row.trackId());
             playCounts.merge(row.trackId(), (long) row.plays(), Long::sum);
         }
 
-        Recommender recommender = new Recommender(new MusicData(data.tracks(), training));
-        List<String> popular = data.tracks().stream().map(Track::id)
+        Recommender recommender = new Recommender(training);
+        List<String> popular = training.tracks().stream().map(Track::id)
                 .sorted(Comparator.<String>comparingLong(id -> playCounts.getOrDefault(id, 0L))
                         .reversed().thenComparing(Comparator.naturalOrder()))
                 .toList();
