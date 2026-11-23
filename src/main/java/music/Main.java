@@ -16,6 +16,7 @@ public final class Main {
 
               recommend USER    Rank unheard tracks for a listener
               hide USER TRACK   Hide a track for one listener (requires --feedback)
+              unhide USER TRACK   Restore a track for one listener (requires --feedback)
               serve             Serve JSON recommendations on loopback
               evaluate          Compare personalized and popularity rankings
 
@@ -25,7 +26,7 @@ public final class Main {
               --port N          HTTP port for serve (default 8080, 0 for ephemeral)
               --tracks FILE     Track catalog (default examples/tracks.tsv)
               --listens FILE    Listening history (default examples/listens.tsv)
-              --feedback FILE   Hidden tracks per listener for recommend
+              --feedback FILE   Listener feedback for recommend, hide, and unhide
               --events FILE     Timestamped plays for chronological evaluation
               --cutoff TIME     Evaluation boundary with UTC offset (requires --events)
               --help            Show usage
@@ -46,19 +47,19 @@ public final class Main {
 
         try {
             String user = null;
-            String toHide = null;
+            String feedbackTrack = null;
             int next = 1;
             switch (args[0]) {
-                case "recommend", "hide" -> {
+                case "recommend", "hide", "unhide" -> {
                     if (args.length < 2 || args[1].isBlank() || args[1].startsWith("--")) {
                         throw new IllegalArgumentException(args[0] + " requires a listener ID");
                     }
                     user = args[next++];
-                    if (args[0].equals("hide")) {
+                    if (!args[0].equals("recommend")) {
                         if (next == args.length || args[next].startsWith("--")) {
-                            throw new IllegalArgumentException("hide requires a track ID");
+                            throw new IllegalArgumentException(args[0] + " requires a track ID");
                         }
-                        toHide = args[next++];
+                        feedbackTrack = args[next++];
                     }
                 }
                 case "serve", "evaluate" -> { }
@@ -79,14 +80,14 @@ public final class Main {
                     throw new IllegalArgumentException("missing value for " + option);
                 }
                 String value = args[next++];
-                if (toHide != null && !option.equals("--tracks") && !option.equals("--feedback")) {
-                    throw new IllegalArgumentException("Unsupported hide option: " + option);
+                if (feedbackTrack != null && !option.equals("--tracks") && !option.equals("--feedback")) {
+                    throw new IllegalArgumentException("Unsupported " + args[0] + " option: " + option);
                 }
                 switch (option) {
                     case "--tracks" -> tracks = Path.of(value);
                     case "--listens" -> listens = Path.of(value);
                     case "--feedback" -> {
-                        if (user == null) throw new IllegalArgumentException("--feedback requires recommend");
+                        if (user == null) throw new IllegalArgumentException("--feedback requires recommend, hide, or unhide");
                         feedback = Path.of(value);
                     }
                     case "--events" -> events = Path.of(value);
@@ -115,9 +116,9 @@ public final class Main {
                 }
             }
 
-            if (toHide != null) {
-                if (feedback == null) throw new IllegalArgumentException("hide requires --feedback FILE");
-                MusicData.hideTrack(feedback, user, toHide, MusicData.loadCatalog(tracks));
+            if (feedbackTrack != null) {
+                if (feedback == null) throw new IllegalArgumentException(args[0] + " requires --feedback FILE");
+                MusicData.setTrackHidden(feedback, user, feedbackTrack, MusicData.loadCatalog(tracks), args[0].equals("hide"));
                 return 0;
             }
             if (events != null || cutoff != null) {

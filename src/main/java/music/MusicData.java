@@ -126,7 +126,7 @@ public record MusicData(List<Track> tracks, List<Listening> history) {
         });
     }
 
-    static synchronized void hideTrack(Path feedback, String user, String trackId, List<Track> catalog)
+    static synchronized void setTrackHidden(Path feedback, String user, String trackId, List<Track> catalog, boolean hidden)
             throws IOException {
         if (user.isBlank() || !user.equals(user.strip()) || user.chars().anyMatch(c -> c == '\t' || c == '\n' || c == '\r')) {
             throw new IllegalArgumentException("Listener ID must fit in one feedback field");
@@ -146,8 +146,12 @@ public record MusicData(List<Track> tracks, List<Listening> history) {
                 rows = new ArrayList<>();
             }
             UserTrack entry = new UserTrack(user, trackId);
-            if (rows.contains(entry)) return;
-            rows.add(entry);
+            if (hidden) {
+                if (rows.contains(entry)) return;
+                rows.add(entry);
+            } else if (!rows.removeIf(entry::equals)) {
+                return;
+            }
             Path temp = Files.createTempFile(target.getParent(), ".feedback-", ".tmp");
             try {
                 try (var writer = Files.newBufferedWriter(temp, StandardCharsets.UTF_8)) {

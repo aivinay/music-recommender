@@ -64,6 +64,11 @@ public final class MainTest {
             Result filtered = run(withFeedback);
             check(filtered.status() == 0 && filtered.out().contains("1\ts2\t"),
                     "Duplicate hides and another listener's feedback leave the next track available");
+            String[] restore = {"unhide", "new", "s1", "--tracks", tracks.toString(), "--feedback", feedback.toString()};
+            check(run(restore).status() == 0 && run(restore).status() == 0, "Repeat restore succeeds");
+            check(Files.readString(feedback).equals(header + "other\ts2\n"),
+                    "Restore removes all matching rows and preserves the other listener");
+            check(run(withFeedback).out().contains("1\ts1\t"), "Restored track regains its original rank");
             Files.writeString(feedback, header + "new\ts1\nnew\ts2\n");
             check(run(withFeedback).out().contains("No unheard tracks"), "Entire catalog hidden");
             Files.writeString(feedback, header + "new\ts1\nother\tmissing\n");
