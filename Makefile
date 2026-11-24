@@ -25,6 +25,7 @@ test: build
 	done
 	@$(JAVA) -jar $(ARTIFACT) recommend maya --limit 3 > /dev/null
 	@$(JAVA) -jar $(ARTIFACT) evaluate --limit 3 > /dev/null
+	@bash src/test/sh/feedback-write-failure.sh "$(JAVA)" "$(ARTIFACT)"
 
 clean:
 	rm -rf build
