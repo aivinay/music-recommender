@@ -45,6 +45,8 @@ curl -fsS "${base_url}/recommendations?user=maya&limit=1"
 {"recommendations":[{"id":"t03","title":"Last Train in Violet","artist":"Copper Meridian","genre":"Breakbeat","score":0.5058485492490495,"explanation":"Matches a genre you play: Breakbeat"}]}
 ```
 
+After startup, `curl -fsS "${base_url}/ready"` returns `{"status":"ready"}` when the model is loaded and the HTTP service is accepting requests.
+
 To personalize a new listener’s list with two favorites and return at most one song per artist, use the same server URL:
 
 ```sh

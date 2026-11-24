@@ -16,6 +16,7 @@ public final class RecommendationServerTest {
         var model = new Recommender(MusicData.load(Path.of("examples/tracks.tsv"), Path.of("examples/listens.tsv")));
         try (var server = RecommendationServer.start(model, 0, 5)) {
             var client = HttpClient.newHttpClient();
+            assertReadiness(client, server.port());
             var maya = request(client, server.port(), "?user=maya&limit=3");
             var theo = request(client, server.port(), "?user=theo&limit=1");
             assertRanking(maya.get(10, TimeUnit.SECONDS), model.recommend("maya", 3));
@@ -51,6 +52,22 @@ public final class RecommendationServerTest {
         }
         assertEscapedTitle();
         assertListenerHistoryExtremes();
+    }
+
+    private static void assertReadiness(HttpClient client, int port) throws Exception {
+        var uri = URI.create("http://127.0.0.1:" + port + "/ready");
+        var body = HttpResponse.BodyHandlers.ofString();
+        var ready = client.send(HttpRequest.newBuilder(uri).build(), body);
+        if (ready.statusCode() != 200 || !ready.body().equals("{\"status\":\"ready\"}")
+                || !ready.headers().firstValue("Content-Type").orElse("").startsWith("application/json")) {
+            throw new AssertionError("Unexpected readiness response: " + ready + " " + ready.body());
+        }
+        var post = client.send(HttpRequest.newBuilder(uri).POST(HttpRequest.BodyPublishers.noBody()).build(), body);
+        if (post.statusCode() != 405 || !post.headers().firstValue("Allow").orElse("").equals("GET")) {
+            throw new AssertionError("Unexpected readiness method response: " + post);
+        }
+        var extra = client.send(HttpRequest.newBuilder(uri.resolve("/ready/extra")).build(), body);
+        if (extra.statusCode() != 404) throw new AssertionError("Unexpected readiness subpath response: " + extra);
     }
 
     private static void assertListenerHistoryExtremes() throws Exception {
