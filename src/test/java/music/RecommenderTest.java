@@ -33,6 +33,9 @@ public final class RecommenderTest {
         var original = engine.recommend("new", 4);
         var seeded = engine.recommend("new", 4, 4, Set.of(), List.of("seed"));
         equal(List.of("genre", "artist", "hit"), ids(seeded));
+        equal("Shares a genre with Night Train", seeded.get(0).reason());
+        equal("Shares an artist with Night Train", seeded.get(1).reason());
+        equal("Popular across listening history", seeded.get(2).reason());
         equal(seeded, engine.recommend("new", 4, 4, Set.of(), List.of("seed", "seed")));
         var returning = engine.recommend("fan", 4, 4, Set.of(), List.of("hit", "seed"));
         // Seven stored plays contribute three times the log-weight of the single seed play.

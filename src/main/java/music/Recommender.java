@@ -82,9 +82,19 @@ public final class Recommender {
         Map<String, Double> heard = profileWithSeeds(userId, seedTrackIds);
         Map<String, Double> artists = new HashMap<>();
         Map<String, Double> genres = new HashMap<>();
+        Set<String> favorites = Set.copyOf(seedTrackIds);
+        Map<String, Track> artistSources = new HashMap<>();
+        Map<String, Track> genreSources = new HashMap<>();
         double weightSum = heard.values().stream().mapToDouble(Double::doubleValue).sum();
         heard.forEach((id, weight) -> {
             Track track = catalog.get(id);
+            if (!favorites.isEmpty()) {
+                // Profile order is by track ID, so equally weighted sources have a stable tie break.
+                artistSources.merge(key(track.artist()), track,
+                        (a, b) -> heard.get(a.id()) >= heard.get(b.id()) ? a : b);
+                genreSources.merge(key(track.genre()), track,
+                        (a, b) -> heard.get(a.id()) >= heard.get(b.id()) ? a : b);
+            }
             artists.merge(key(track.artist()), weight / weightSum, Double::sum);
             genres.merge(key(track.genre()), weight / weightSum, Double::sum);
         });
@@ -103,7 +113,8 @@ public final class Recommender {
                 double genre = GENRE_WEIGHT * genres.getOrDefault(key(track.genre()), 0.0);
                 double artist = ARTIST_WEIGHT * artists.getOrDefault(key(track.artist()), 0.0);
                 double baseline = POPULARITY_WEIGHT * popular;
-                String reason = strongestReason(track, peer, genre, artist, baseline);
+                String reason = strongestReason(track, peer, genre, artist, baseline, favorites,
+                        genreSources.get(key(track.genre())), artistSources.get(key(track.artist())));
                 candidates.add(new Recommendation(track, peer + genre + artist + baseline, reason));
             }
         }
@@ -170,15 +181,22 @@ public final class Recommender {
         return support;
     }
 
-    private static String strongestReason(Track track, double peer, double genre, double artist, double popular) {
+    private static String strongestReason(Track track, double peer, double genre, double artist, double popular,
+                                          Set<String> favorites, Track genreSource, Track artistSource) {
         double strongest = Math.max(Math.max(peer, genre), Math.max(artist, popular));
         if (strongest > 0 && strongest == peer) {
             return "Played by listeners with similar taste";
         }
         if (strongest > 0 && strongest == genre) {
+            if (genreSource != null && favorites.contains(genreSource.id())) {
+                return "Shares a genre with " + genreSource.title();
+            }
             return "Matches a genre you play: " + track.genre();
         }
         if (strongest > 0 && strongest == artist) {
+            if (artistSource != null && favorites.contains(artistSource.id())) {
+                return "Shares an artist with " + artistSource.title();
+            }
             return "More from an artist you play: " + track.artist();
         }
         return popularityReason(popular);
