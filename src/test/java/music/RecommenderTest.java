@@ -14,6 +14,7 @@ public final class RecommenderTest {
 
     public static void main(String[] args) {
         ranksForNewListeners();
+        usesTemporaryFavorites();
         limitsTracksPerArtist();
         excludesHiddenTracks();
         matchesGenreAndArtist();
@@ -25,6 +26,25 @@ public final class RecommenderTest {
 
     private static Recommender model(List<Track> tracks, List<Listening> history) {
         return new Recommender(new MusicData(tracks, history));
+    }
+
+    private static void usesTemporaryFavorites() {
+        var engine = model(List.of(HIT, SEED, GENRE, ARTIST), List.of(new Listening("fan", "hit", 7)));
+        var original = engine.recommend("new", 4);
+        var seeded = engine.recommend("new", 4, 4, Set.of(), List.of("seed"));
+        equal(List.of("genre", "artist", "hit"), ids(seeded));
+        equal(seeded, engine.recommend("new", 4, 4, Set.of(), List.of("seed", "seed")));
+        var returning = engine.recommend("fan", 4, 4, Set.of(), List.of("hit", "seed"));
+        // Seven stored plays contribute three times the log-weight of the single seed play.
+        close(0.25 / 4, returning.get(0).score());
+        equal(List.of("genre", "artist"), ids(returning));
+        equal(original, engine.recommend("new", 4));
+        try {
+            engine.recommend("fan", 4, 4, Set.of(), List.of("missing"));
+            throw new AssertionError("Accepted an unknown seed");
+        } catch (IllegalArgumentException expected) {
+            equal(true, expected.getMessage().contains("missing"));
+        }
     }
 
     private static void ranksForNewListeners() {

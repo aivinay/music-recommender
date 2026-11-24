@@ -20,6 +20,7 @@ public final class Recommender {
 
     private final Map<String, Track> catalog = new TreeMap<>();
     private final Map<String, Map<String, Double>> listeners = new TreeMap<>();
+    private final Map<String, Double> profileNorms = new HashMap<>();
     private final Map<String, Double> popularity = new HashMap<>();
 
     public Recommender(MusicData data) {
@@ -35,8 +36,10 @@ public final class Recommender {
         }
 
         // Normalizing once makes each dot product a cosine similarity at query time.
-        for (Map<String, Double> vector : listeners.values()) {
+        for (var listener : listeners.entrySet()) {
+            var vector = listener.getValue();
             double norm = Math.sqrt(vector.values().stream().mapToDouble(w -> w * w).sum());
+            profileNorms.put(listener.getKey(), norm);
             vector.replaceAll((id, weight) -> weight / norm);
         }
         long maxPlays = totalPlays.values().stream().mapToLong(Long::longValue).max().orElse(0);
@@ -55,6 +58,12 @@ public final class Recommender {
 
     /** Excludes the requesting listener's hidden tracks before filling the result list. */
     public List<Recommendation> recommend(String userId, int limit, int maxPerArtist, Set<String> hiddenTrackIds) {
+        return recommend(userId, limit, maxPerArtist, hiddenTrackIds, List.of());
+    }
+
+    /** Gives each distinct unheard favorite one temporary play for this request. */
+    public List<Recommendation> recommend(String userId, int limit, int maxPerArtist,
+                                          Set<String> hiddenTrackIds, List<String> seedTrackIds) {
         for (String id : hiddenTrackIds) {
             if (id == null || !catalog.containsKey(id)) {
                 throw new IllegalArgumentException("Unknown hidden track ID '" + id + "'");
@@ -70,7 +79,7 @@ public final class Recommender {
             throw new IllegalArgumentException("Limit must be at least 1");
         }
 
-        Map<String, Double> heard = listeners.getOrDefault(userId, Map.of());
+        Map<String, Double> heard = profileWithSeeds(userId, seedTrackIds);
         Map<String, Double> artists = new HashMap<>();
         Map<String, Double> genres = new HashMap<>();
         double weightSum = heard.values().stream().mapToDouble(Double::doubleValue).sum();
@@ -115,6 +124,25 @@ public final class Recommender {
             }
         }
         return List.copyOf(selected);
+    }
+
+    private Map<String, Double> profileWithSeeds(String userId, List<String> seeds) {
+        Map<String, Double> history = listeners.getOrDefault(userId, Map.of());
+        if (seeds.isEmpty()) return history;
+
+        Map<String, Double> profile = new TreeMap<>(history);
+        // Put the one-play weight on the same scale as the normalized history.
+        double seedWeight = Math.log1p(1) / profileNorms.getOrDefault(userId, 1.0);
+        for (String id : seeds) {
+            if (id == null || !catalog.containsKey(id)) {
+                throw new IllegalArgumentException("Unknown seed track ID '" + id + "'");
+            }
+            profile.putIfAbsent(id, seedWeight);
+        }
+        if (profile.size() == history.size()) return history;
+        double norm = Math.sqrt(profile.values().stream().mapToDouble(w -> w * w).sum());
+        profile.replaceAll((id, weight) -> weight / norm);
+        return profile;
     }
 
     private Map<String, Double> peerSupport(String userId, Map<String, Double> heard) {
