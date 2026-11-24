@@ -152,7 +152,7 @@ public final class Main {
                     var server = RecommendationServer.start(new Recommender(data), port, limit);
                     out.println("Listening on http://127.0.0.1:" + server.port());
                 } catch (IOException e) {
-                    err.println("Could not start HTTP server: " + e.getMessage());
+                    err.println("Could not start HTTP server on 127.0.0.1:" + port + ": " + e.getMessage());
                     return 1;
                 }
             } else if (user == null) {

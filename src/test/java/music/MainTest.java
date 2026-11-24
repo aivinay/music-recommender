@@ -2,9 +2,14 @@ package music;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 
 public final class MainTest {
     public static void main(String[] args) throws Exception {
@@ -14,6 +19,7 @@ public final class MainTest {
         check(run("recommend").status() != 0, "Missing listener");
         check(run("evaluate", "--tracks").status() != 0, "Missing option value");
 
+        testOccupiedPort();
         testFavoriteTracks();
         String events = "examples/chronological-plays.tsv";
         Result discovery = run("evaluate", "--events", events, "--cutoff", "2025-12-31T19:00:00-05:00", "--limit", "3");
@@ -89,6 +95,21 @@ public final class MainTest {
             Files.deleteIfExists(listens);
             Files.deleteIfExists(tracks);
             Files.delete(dir);
+        }
+    }
+
+    private static void testOccupiedPort() throws Exception {
+        var model = new Recommender(MusicData.load(Path.of("examples/tracks.tsv"), Path.of("examples/listens.tsv")));
+        try (var existing = RecommendationServer.start(model, 0, 5)) {
+            String endpoint = "127.0.0.1:" + existing.port();
+            Result conflict = run("serve", "--port", Integer.toString(existing.port()));
+            check(conflict.status() == 1 && conflict.out().isEmpty() && conflict.err().contains(endpoint),
+                    "A port collision must identify the requested endpoint without announcing startup");
+            var request = HttpRequest.newBuilder(URI.create("http://" + endpoint + "/ready"))
+                    .timeout(Duration.ofSeconds(5)).build();
+            var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            check(response.statusCode() == 200 && response.body().equals("{\"status\":\"ready\"}"),
+                    "The original service must still answer after a port collision");
         }
     }
 
