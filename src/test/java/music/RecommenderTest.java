@@ -15,6 +15,7 @@ public final class RecommenderTest {
     public static void main(String[] args) {
         ranksForNewListeners();
         usesTemporaryFavorites();
+        explainsPeerFavorites();
         limitsTracksPerArtist();
         excludesHiddenTracks();
         matchesGenreAndArtist();
@@ -48,6 +49,17 @@ public final class RecommenderTest {
         } catch (IllegalArgumentException expected) {
             equal(true, expected.getMessage().contains("missing"));
         }
+    }
+
+    private static void explainsPeerFavorites() {
+        var engine = model(List.of(SEED, PEER, HIT), List.of(new Listening("neighbor", "seed", 3),
+                new Listening("neighbor", "peer", 3), new Listening("returning", "seed", 1)));
+        var fresh = engine.recommend("new", 1, 1, Set.of(), List.of("seed")).get(0);
+        equal("peer", fresh.track().id());
+        equal("Played by listeners who also played Night Train", fresh.reason());
+        var returning = engine.recommend("returning", 1, 1, Set.of(), List.of("hit")).get(0);
+        equal("peer", returning.track().id());
+        equal("Played by listeners with similar taste", returning.reason());
     }
 
     private static void ranksForNewListeners() {

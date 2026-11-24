@@ -13,6 +13,7 @@ import java.util.TreeMap;
 public final class Recommender {
     public record Recommendation(Track track, double score, String reason) {}
 
+    private static final String PEER_REASON = "Played by listeners with similar taste";
     private static final double PEER_WEIGHT = 0.45;
     private static final double GENRE_WEIGHT = 0.25;
     private static final double ARTIST_WEIGHT = 0.20;
@@ -120,6 +121,41 @@ public final class Recommender {
         }
         candidates.sort(Comparator.comparingDouble(Recommendation::score).reversed()
                 .thenComparing(r -> r.track().id()));
+        var selected = selectByArtist(candidates, limit, maxPerArtist);
+        if (favorites.isEmpty()) return selected;
+        return selected.stream().map(pick -> pick.reason().equals(PEER_REASON)
+                ? explainPeerPick(pick, userId, heard, favorites) : pick).toList();
+    }
+
+    private Recommendation explainPeerPick(Recommendation pick, String user, Map<String, Double> profile,
+                                           Set<String> favorites) {
+        // Decompose the peer score numerator by shared track. The denominator is common to all sources.
+        Map<String, Double> contributions = new TreeMap<>();
+        for (var entry : listeners.entrySet()) {
+            if (entry.getKey().equals(user)) continue;
+            var neighbor = entry.getValue();
+            Double candidateWeight = neighbor.get(pick.track().id());
+            if (candidateWeight == null) continue;
+            for (var play : profile.entrySet()) {
+                Double sharedWeight = neighbor.get(play.getKey());
+                if (sharedWeight != null) {
+                    contributions.merge(play.getKey(), play.getValue() * sharedWeight * candidateWeight, Double::sum);
+                }
+            }
+        }
+        String source = null;
+        double strongest = 0;
+        for (var contribution : contributions.entrySet()) {
+            if (contribution.getValue() > strongest) {
+                strongest = contribution.getValue();
+                source = contribution.getKey();
+            }
+        }
+        if (source == null || !favorites.contains(source)) return pick;
+        return new Recommendation(pick.track(), pick.score(), "Played by listeners who also played " + catalog.get(source).title());
+    }
+
+    private static List<Recommendation> selectByArtist(List<Recommendation> candidates, int limit, int maxPerArtist) {
         if (maxPerArtist >= limit) {
             return List.copyOf(candidates.subList(0, Math.min(limit, candidates.size())));
         }
@@ -185,7 +221,7 @@ public final class Recommender {
                                           Set<String> favorites, Track genreSource, Track artistSource) {
         double strongest = Math.max(Math.max(peer, genre), Math.max(artist, popular));
         if (strongest > 0 && strongest == peer) {
-            return "Played by listeners with similar taste";
+            return PEER_REASON;
         }
         if (strongest > 0 && strongest == genre) {
             if (genreSource != null && favorites.contains(genreSource.id())) {
