@@ -25,6 +25,16 @@ public final class RecommendationServerTest {
             var seeded = request(client, server.port(), "?user=new&seed-track=t01&seed-track=t04");
             assertRanking(seeded.get(10, TimeUnit.SECONDS),
                     model.recommend("new", 5, Integer.MAX_VALUE, Set.of(), favorites));
+            var capped = request(client, server.port(), "?user=new&limit=14&max-per-artist=1");
+            assertRanking(capped.get(10, TimeUnit.SECONDS), model.recommend("new", 14, 1));
+            var combined = request(client, server.port(), "?user=new&limit=14&max-per-artist=1&seed-track=t01&seed-track=t04");
+            assertRanking(combined.get(10, TimeUnit.SECONDS), model.recommend("new", 14, 1, Set.of(), favorites));
+            for (String cap : List.of("", "three", "2147483648")) {
+                assertBadRequest(client, server.port(), "?user=new&max-per-artist=" + cap, "max-per-artist requires a positive integer");
+            }
+            for (String cap : List.of("0", "-1")) {
+                assertBadRequest(client, server.port(), "?user=new&max-per-artist=" + cap, "Maximum tracks per artist must be at least 1");
+            }
             assertBadRequest(client, server.port(), "?user=new&seed-track=absent", "Unknown seed track ID 'absent'");
             assertBadRequest(client, server.port(), "?user=new&seed-track=", "Unknown seed track ID ''");
             assertRanking(request(client, server.port(), "?user=new").get(10, TimeUnit.SECONDS), model.recommend("new", 5));

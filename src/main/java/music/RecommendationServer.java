@@ -58,6 +58,7 @@ final class RecommendationServer implements AutoCloseable {
 
     private static void handle(HttpExchange exchange, Recommender model, int limit) throws IOException {
         String user = null;
+        int maxPerArtist = Integer.MAX_VALUE;
         List<String> seeds = new ArrayList<>();
         String query = exchange.getRequestURI().getRawQuery();
         try {
@@ -68,15 +69,23 @@ final class RecommendationServer implements AutoCloseable {
                     switch (URLDecoder.decode(parts[0], StandardCharsets.UTF_8)) {
                         case "user" -> user = value;
                         case "seed-track" -> seeds.add(value);
-                        case "limit" -> limit = Integer.parseInt(value);
+                        case "limit" -> limit = parseInteger("limit", value);
+                        case "max-per-artist" -> maxPerArtist = parseInteger("max-per-artist", value);
                     }
                 }
             }
-            reply(exchange, 200, json(model.recommend(user, limit, Integer.MAX_VALUE, Set.of(), seeds)));
-        } catch (NumberFormatException e) {
-            reply(exchange, 400, "{\"error\":\"limit requires a positive integer\"}");
+            reply(exchange, 200, json(model.recommend(user, limit, maxPerArtist, Set.of(), seeds)));
+
         } catch (IllegalArgumentException e) {
             reply(exchange, 400, "{\"error\":" + quote(e.getMessage()) + "}");
+        }
+    }
+
+    private static int parseInteger(String parameter, String value) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(parameter + " requires a positive integer");
         }
     }
 

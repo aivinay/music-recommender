@@ -45,6 +45,14 @@ curl -fsS "${base_url}/recommendations?user=maya&limit=1"
 {"recommendations":[{"id":"t03","title":"Last Train in Violet","artist":"Copper Meridian","genre":"Breakbeat","score":0.5058485492490495,"explanation":"Matches a genre you play: Breakbeat"}]}
 ```
 
+To personalize a new listener’s list with two favorites and return at most one song per artist, use the same server URL:
+
+```sh
+curl -fsS "${base_url}/recommendations?user=new&limit=5&seed-track=t01&seed-track=t04&max-per-artist=1"
+```
+
+Both options apply only to this request. Each favorite must be a catalog track ID, and the artist limit must be a positive integer.
+
 ## Supply your own music
 
 Pass a track catalog and aggregated play counts as UTF-8 tab-separated files. The defaults are [examples/tracks.tsv](examples/tracks.tsv) and [examples/listens.tsv](examples/listens.tsv), relative to the working directory.
