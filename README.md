@@ -61,6 +61,8 @@ java -jar build/music-recommender.jar recommend listener-42 \
   --tracks /path/to/tracks.tsv --listens /path/to/listens.tsv --limit 10
 ```
 
+To personalize a first visit, run `java -jar build/music-recommender.jar recommend newcomer --seed-track t01 --limit 5`. On the demo catalog, choosing *Platform After Rain* moves *Last Train in Violet* ahead of the popularity leader, *Slow Hours Market*. Repeat `--seed-track` to add more favorites. Each distinct favorite counts once for this request unless the listener already has plays for it, in which case their stored count applies.
+
 To request at most one track per artist, run `java -jar build/music-recommender.jar recommend maya --limit 5 --max-per-artist 1`. The cap applies to personalized and popularity rankings, matches artist names case-insensitively, and can yield a shorter list when too few artists qualify. Java callers can use `model.recommend("maya", 5, 1)`.
 
 ### Hide tracks using a feedback file

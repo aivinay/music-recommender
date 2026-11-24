@@ -6,7 +6,9 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -22,6 +24,7 @@ public final class Main {
 
             Options:
               --limit N         Maximum recommendations (default 5)
+              --seed-track ID   Favorite track for recommend (repeatable)
               --max-per-artist N  Maximum tracks per artist for recommend (default unlimited)
               --port N          HTTP port for serve (default 8080, 0 for ephemeral)
               --tracks FILE     Track catalog (default examples/tracks.tsv)
@@ -71,6 +74,7 @@ public final class Main {
             Path events = null;
             Path feedback = null;
             Instant cutoff = null;
+            List<String> seeds = new ArrayList<>();
             int limit = 5;
             int maxPerArtist = Integer.MAX_VALUE;
             int port = 8080;
@@ -106,6 +110,10 @@ public final class Main {
                         } catch (NumberFormatException e) {
                             throw new IllegalArgumentException("--port requires an integer from 0 to 65535");
                         }
+                    }
+                    case "--seed-track" -> {
+                        if (!args[0].equals("recommend")) throw new IllegalArgumentException("--seed-track requires recommend");
+                        seeds.add(value);
                     }
                     case "--max-per-artist" -> {
                         if (user == null) throw new IllegalArgumentException("--max-per-artist requires recommend");
@@ -151,7 +159,7 @@ public final class Main {
                 printEvaluation(Evaluator.evaluate(data, limit), limit, out);
             } else {
                 Set<String> hidden = feedback == null ? Set.of() : MusicData.loadHiddenTracks(feedback, user, data.tracks());
-                var picks = new Recommender(data).recommend(user, limit, maxPerArtist, hidden);
+                var picks = new Recommender(data).recommend(user, limit, maxPerArtist, hidden, seeds);
                 if (picks.isEmpty()) {
                     out.println("No unheard tracks available.");
                 } else {

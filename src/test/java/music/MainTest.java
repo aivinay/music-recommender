@@ -14,6 +14,7 @@ public final class MainTest {
         check(run("recommend").status() != 0, "Missing listener");
         check(run("evaluate", "--tracks").status() != 0, "Missing option value");
 
+        testFavoriteTracks();
         String events = "examples/chronological-plays.tsv";
         Result discovery = run("evaluate", "--events", events, "--cutoff", "2025-12-31T19:00:00-05:00", "--limit", "3");
         check(discovery.status() == 0 && discovery.out().contains("Eligible listeners: 1")
@@ -89,6 +90,24 @@ public final class MainTest {
             Files.deleteIfExists(tracks);
             Files.delete(dir);
         }
+    }
+
+    private static void testFavoriteTracks() {
+        Result popular = run("recommend", "newcomer", "--limit", "1");
+        check(popular.status() == 0 && popular.out().contains("1\tt09\t"), "Demo popularity leader");
+        Result seeded = run("recommend", "newcomer", "--seed-track", "t01", "--limit", "14");
+        int related = seeded.out().indexOf("\tt03\t");
+        int popularityLeader = seeded.out().indexOf("\tt09\t");
+        check(seeded.status() == 0 && related >= 0 && related < popularityLeader,
+                "Favorite promotes a related demo track above the popularity leader");
+        Result repeated = run("recommend", "newcomer", "--seed-track", "t01", "--seed-track", "t01", "--limit", "14");
+        check(seeded.equals(repeated), "Repeating a seed preserves the ranking and score");
+        Result twoSeeds = run("recommend", "newcomer", "--seed-track", "t01", "--seed-track", "t03", "--limit", "20");
+        check(twoSeeds.status() == 0 && !twoSeeds.out().contains("\tt01\t") && !twoSeeds.out().contains("\tt03\t"),
+                "Both favorites are excluded");
+        Result unknown = run("recommend", "newcomer", "--seed-track", "missing");
+        check(unknown.status() == 2 && unknown.err().contains("missing"), "Unknown seed identifies the track");
+        check(run("evaluate", "--seed-track", "t01").status() == 2, "Seeds require recommend");
     }
 
     private record Result(int status, String out, String err) {}
