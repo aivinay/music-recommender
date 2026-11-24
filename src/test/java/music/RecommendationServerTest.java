@@ -6,6 +6,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +20,14 @@ public final class RecommendationServerTest {
             var theo = request(client, server.port(), "?user=theo&limit=1");
             assertRanking(maya.get(10, TimeUnit.SECONDS), model.recommend("maya", 3));
             assertRanking(theo.get(10, TimeUnit.SECONDS), model.recommend("theo", 1));
+
+            var favorites = List.of("t01", "t04");
+            var seeded = request(client, server.port(), "?user=new&seed-track=t01&seed-track=t04");
+            assertRanking(seeded.get(10, TimeUnit.SECONDS),
+                    model.recommend("new", 5, Integer.MAX_VALUE, Set.of(), favorites));
+            assertBadRequest(client, server.port(), "?user=new&seed-track=absent", "Unknown seed track ID 'absent'");
+            assertBadRequest(client, server.port(), "?user=new&seed-track=", "Unknown seed track ID ''");
+            assertRanking(request(client, server.port(), "?user=new").get(10, TimeUnit.SECONDS), model.recommend("new", 5));
 
             for (String query : new String[]{"", "?limit=1", "?user=", "?user=%20"}) {
                 assertBadRequest(client, server.port(), query, "User ID must not be blank");

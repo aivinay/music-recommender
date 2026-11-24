@@ -6,7 +6,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -56,6 +58,7 @@ final class RecommendationServer implements AutoCloseable {
 
     private static void handle(HttpExchange exchange, Recommender model, int limit) throws IOException {
         String user = null;
+        List<String> seeds = new ArrayList<>();
         String query = exchange.getRequestURI().getRawQuery();
         try {
             if (query != null) {
@@ -64,11 +67,12 @@ final class RecommendationServer implements AutoCloseable {
                     String value = parts.length == 2 ? URLDecoder.decode(parts[1], StandardCharsets.UTF_8) : "";
                     switch (URLDecoder.decode(parts[0], StandardCharsets.UTF_8)) {
                         case "user" -> user = value;
+                        case "seed-track" -> seeds.add(value);
                         case "limit" -> limit = Integer.parseInt(value);
                     }
                 }
             }
-            reply(exchange, 200, json(model.recommend(user, limit)));
+            reply(exchange, 200, json(model.recommend(user, limit, Integer.MAX_VALUE, Set.of(), seeds)));
         } catch (NumberFormatException e) {
             reply(exchange, 400, "{\"error\":\"limit requires a positive integer\"}");
         } catch (IllegalArgumentException e) {
