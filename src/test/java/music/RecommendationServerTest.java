@@ -66,8 +66,13 @@ public final class RecommendationServerTest {
         if (post.statusCode() != 405 || !post.headers().firstValue("Allow").orElse("").equals("GET")) {
             throw new AssertionError("Unexpected readiness method response: " + post);
         }
-        var extra = client.send(HttpRequest.newBuilder(uri.resolve("/ready/extra")).build(), body);
-        if (extra.statusCode() != 404) throw new AssertionError("Unexpected readiness subpath response: " + extra);
+        for (String path : List.of("/", "/missing", "/ready/extra", "/recommendations/extra")) {
+            var response = client.send(HttpRequest.newBuilder(uri.resolve(path)).build(), body);
+            if (response.statusCode() != 404 || !response.body().equals("{\"error\":\"Unknown path\"}")
+                    || !response.headers().firstValue("Content-Type").orElse("").equals("application/json; charset=utf-8")) {
+                throw new AssertionError("Unexpected response for " + path + ": " + response + " " + response.body());
+            }
+        }
     }
 
     private static void assertListenerHistoryExtremes() throws Exception {

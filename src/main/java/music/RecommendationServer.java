@@ -2,7 +2,6 @@ package music;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import com.sun.net.httpserver.HttpHandler;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
@@ -38,28 +37,26 @@ final class RecommendationServer implements AutoCloseable {
 
     static RecommendationServer start(Recommender model, int port, int defaultLimit) throws IOException {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
-        server.createContext("/recommendations", getOnly("/recommendations", exchange -> handle(exchange, model, defaultLimit)));
-        server.createContext("/ready", getOnly("/ready", exchange -> reply(exchange, 200, "{\"status\":\"ready\"}")));
-        var service = new RecommendationServer(server);
-        server.start();
-        return service;
-    }
-
-    private static HttpHandler getOnly(String path, HttpHandler handler) {
-        return exchange -> {
+        server.createContext("/", exchange -> {
             try {
-                if (!exchange.getRequestURI().getPath().equals(path)) {
+                String path = exchange.getRequestURI().getPath();
+                if (!path.equals("/ready") && !path.equals("/recommendations")) {
                     reply(exchange, 404, "{\"error\":\"Unknown path\"}");
                 } else if (!exchange.getRequestMethod().equals("GET")) {
                     exchange.getResponseHeaders().set("Allow", "GET");
                     reply(exchange, 405, "{\"error\":\"GET required\"}");
+                } else if (path.equals("/ready")) {
+                    reply(exchange, 200, "{\"status\":\"ready\"}");
                 } else {
-                    handler.handle(exchange);
+                    handle(exchange, model, defaultLimit);
                 }
             } finally {
                 exchange.close();
             }
-        };
+        });
+        var service = new RecommendationServer(server);
+        server.start();
+        return service;
     }
 
     private static void handle(HttpExchange exchange, Recommender model, int limit) throws IOException {
