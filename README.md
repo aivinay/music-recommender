@@ -33,6 +33,12 @@ make build
 java -jar build/music-recommender.jar serve --port 0
 ```
 
+If startup fails, use the error on stderr to choose a recovery step.
+
+- If the requested loopback port is already in use, restart with `--port 0` and use the newly printed URL. The existing listener keeps its port.
+- If the catalog is missing, check the reported path relative to the working directory, or pass an existing catalog with `--tracks /path/to/tracks.tsv`.
+- If the history is malformed, inspect the reported line in the `--listens` file. Use tab-separated fields, a catalog track ID, and a positive integer play count, then restart the server.
+
 In a second terminal, paste the URL printed after `Listening on` at the prompt. This request returns Maya’s top unheard track.
 
 ```sh

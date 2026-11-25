@@ -39,7 +39,17 @@ public final class MainTest {
         Path listens = dir.resolve("listens.tsv");
         Path feedback = dir.resolve("feedback.tsv");
         try {
+            Result missingCatalog = run("serve", "--port", "0", "--tracks", tracks.toString());
+            check(missingCatalog.status() != 0 && missingCatalog.out().isEmpty()
+                    && missingCatalog.err().contains(tracks.toString()), "Missing catalog identifies its path");
+
             Files.writeString(tracks, "id\ttitle\tartist\tgenre\ns1\tOne\tDuo\tJazz\ns2\tTwo\tDuo\tJazz\n");
+            Files.writeString(listens, "user_id\ttrack_id\tplays\nalex\ts1\t1\nalex\ts2\tinvalid\n");
+            Result malformedHistory = run("serve", "--port", "0", "--tracks", tracks.toString(),
+                    "--listens", listens.toString());
+            check(malformedHistory.status() != 0 && malformedHistory.out().isEmpty()
+                    && malformedHistory.err().contains(listens + ":3:"), "Malformed history identifies its row");
+
             Files.writeString(listens, "user_id\ttrack_id\tplays\nalex\ts1\t8\n");
             Result capped = run("recommend", "new", "--tracks", tracks.toString(), "--listens", listens.toString(),
                     "--max-per-artist", "1");
