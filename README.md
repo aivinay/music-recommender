@@ -24,6 +24,10 @@ java -jar build/music-recommender.jar evaluate --limit 3
 make test
 ```
 
+## Identify a deployed build
+
+Run `java -jar /path/to/music-recommender.jar --version` from any directory to print the Git commit recorded at build time. A source archive without Git metadata reports `unknown` by default. If the source revision is known, supply it when packaging with `make build REVISION=<commit>` (replace `<commit>` with the actual identifier).
+
 ## Request recommendations over HTTP
 
 From the repository root, start the server with the example dataset. Port `0` lets the operating system choose an available loopback port.

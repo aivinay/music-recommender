@@ -4,6 +4,8 @@ JAR = jar
 MAIN_SOURCES := $(wildcard src/main/java/music/*.java)
 TEST_SOURCES := $(wildcard src/test/java/music/*Test.java)
 TEST_CLASSES := $(patsubst src/test/java/music/%.java,music.%,$(TEST_SOURCES))
+REVISION ?= $(shell git --git-dir=.git rev-parse --verify HEAD 2>/dev/null || echo unknown)
+export REVISION
 ARTIFACT := build/music-recommender.jar
 
 .PHONY: build test clean
@@ -13,7 +15,8 @@ build:
 	rm -rf build/classes
 	mkdir -p build/classes
 	$(JAVAC) --release 17 -encoding UTF-8 -d build/classes $(MAIN_SOURCES)
-	$(JAR) --create --file $(ARTIFACT) --main-class music.Main -C build/classes .
+	printf 'Implementation-Version: %s\n' "$$REVISION" > build/manifest.mf
+	$(JAR) --create --manifest build/manifest.mf --file $(ARTIFACT) --main-class music.Main -C build/classes .
 
 test: build
 	rm -rf build/test-classes
@@ -23,6 +26,9 @@ test: build
 		echo "Running $$test"; \
 		$(JAVA) -cp build/classes:build/test-classes $$test; \
 	done
+	@set -eu; dir=$$(mktemp -d); trap 'rmdir "$$dir"' EXIT; \
+		version=$$(cd "$$dir" && "$(JAVA)" -jar "$(abspath $(ARTIFACT))" --version); \
+		test "$$version" = "$$REVISION"
 	@$(JAVA) -jar $(ARTIFACT) recommend maya --limit 3 > /dev/null
 	@$(JAVA) -jar $(ARTIFACT) evaluate --limit 3 > /dev/null
 	@bash src/test/sh/feedback-write-failure.sh "$(JAVA)" "$(ARTIFACT)"

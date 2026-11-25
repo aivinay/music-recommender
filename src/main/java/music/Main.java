@@ -32,6 +32,7 @@ public final class Main {
               --feedback FILE   Listener feedback for recommend, hide, and unhide
               --events FILE     Timestamped plays for chronological evaluation
               --cutoff TIME     Evaluation boundary with UTC offset (requires --events)
+              --version         Print the packaged source revision and exit
               --help            Show usage
             """;
 
@@ -45,6 +46,12 @@ public final class Main {
     static int run(String[] args, PrintStream out, PrintStream err) {
         if (args.length == 0 || Arrays.asList(args).contains("--help")) {
             out.print(USAGE);
+            return 0;
+        }
+
+        if (args.length == 1 && args[0].equals("--version")) {
+            String revision = Main.class.getPackage().getImplementationVersion();
+            out.println(revision == null ? "unknown" : revision);
             return 0;
         }
 
