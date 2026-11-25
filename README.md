@@ -37,6 +37,7 @@ If startup fails, use the error on stderr to choose a recovery step.
 
 - If the requested loopback port is already in use, restart with `--port 0` and use the newly printed URL. The existing listener keeps its port.
 - If the catalog is missing, check the reported path relative to the working directory, or pass an existing catalog with `--tracks /path/to/tracks.tsv`.
+- If an input file reports an encoding error, re-export the named TSV as UTF-8 from its source, then restart with the corrected file.
 - If the history is malformed, inspect the reported line in the `--listens` file. Use tab-separated fields, a catalog track ID, and a positive integer play count, then restart the server.
 
 In a second terminal, paste the URL printed after `Listening on` at the prompt. This request returns Maya’s top unheard track.

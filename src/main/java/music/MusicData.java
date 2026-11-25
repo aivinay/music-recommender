@@ -3,6 +3,7 @@ package music;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -204,6 +205,8 @@ public record MusicData(List<Track> tracks, List<Listening> history) {
                     throw new IOException(path + ":" + lineNumber + ": " + error.getMessage(), error);
                 }
             }
+        } catch (CharacterCodingException error) {
+            throw new IOException(path + ": Expected UTF-8 text", error);
         }
         return rows;
     }

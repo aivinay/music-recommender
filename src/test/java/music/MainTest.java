@@ -43,6 +43,15 @@ public final class MainTest {
             check(missingCatalog.status() != 0 && missingCatalog.out().isEmpty()
                     && missingCatalog.err().contains(tracks.toString()), "Missing catalog identifies its path");
 
+            for (String option : java.util.List.of("--tracks", "--listens")) {
+                Path invalid = option.equals("--tracks") ? tracks : listens;
+                Files.write(invalid, new byte[]{(byte) 0xff});
+                Result encoding = run("serve", "--port", "0", option, invalid.toString());
+                check(encoding.status() != 0 && encoding.out().isEmpty()
+                        && encoding.err().contains(invalid.toString()) && encoding.err().contains("UTF-8"),
+                        "Invalid encoding identifies the affected " + option + " file");
+            }
+
             Files.writeString(tracks, "id\ttitle\tartist\tgenre\ns1\tOne\tDuo\tJazz\ns2\tTwo\tDuo\tJazz\n");
             Files.writeString(listens, "user_id\ttrack_id\tplays\nalex\ts1\t1\nalex\ts2\tinvalid\n");
             Result malformedHistory = run("serve", "--port", "0", "--tracks", tracks.toString(),
