@@ -28,6 +28,17 @@ make test
 
 Run `java -jar /path/to/music-recommender.jar --version` from any directory to print the Git commit recorded at build time. A source archive without Git metadata reports `unknown` by default. If the source revision is known, supply it when packaging with `make build REVISION=<commit>` (replace `<commit>` with the actual identifier).
 
+### Download a tested JAR
+
+In the repository’s **Actions → Java CI** tab, open a successful push run for `main`. Download **music-recommender** under **Artifacts** while signed in to GitHub. Extract the ZIP and run these commands from the extracted directory with Java 17 or newer:
+
+```sh
+sha256sum -c music-recommender.jar.sha256
+java -jar music-recommender.jar --version
+```
+
+The checksum should report `music-recommender.jar: OK`. Compare the printed revision with the full commit SHA linked from the run. On macOS, use `shasum -a 256 -c music-recommender.jar.sha256` for the checksum.
+
 ## Request recommendations over HTTP
 
 From the repository root, start the server with the example dataset. Port `0` lets the operating system choose an available loopback port.

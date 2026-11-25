@@ -18,3 +18,34 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
       - run: make test
+      - name: Checksum the tested JAR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.java == '17'
+        working-directory: build
+        run: sha256sum music-recommender.jar > music-recommender.jar.sha256
+      - name: Upload the tested JAR and checksum
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.java == '17'
+        uses: actions/upload-artifact@v7
+        with:
+          name: music-recommender
+          path: |
+            build/music-recommender.jar
+            build/music-recommender.jar.sha256
+          if-no-files-found: error
+          overwrite: true
+
+  verify-download:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@v8
+        with:
+          name: music-recommender
+      - name: Verify the downloaded JAR
+        run: |
+          sha256sum -c music-recommender.jar.sha256
+          test "$(java -jar music-recommender.jar --version)" = "$GITHUB_SHA"
