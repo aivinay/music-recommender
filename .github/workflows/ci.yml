@@ -18,11 +18,14 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
       - run: make test
-      - name: Checksum the tested JAR
+      - name: Package the tested JAR and demo data
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.java == '17'
         working-directory: build
-        run: sha256sum music-recommender.jar > music-recommender.jar.sha256
-      - name: Upload the tested JAR and checksum
+        run: |
+          mkdir -p examples
+          cp ../examples/{tracks,listens,chronological-plays}.tsv examples/
+          sha256sum music-recommender.jar examples/*.tsv > music-recommender.jar.sha256
+      - name: Upload the demo package
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.java == '17'
         uses: actions/upload-artifact@v7
         with:
@@ -30,6 +33,7 @@ jobs:
           path: |
             build/music-recommender.jar
             build/music-recommender.jar.sha256
+            build/examples/*.tsv
           if-no-files-found: error
           overwrite: true
 
@@ -49,3 +53,5 @@ jobs:
         run: |
           sha256sum -c music-recommender.jar.sha256
           test "$(java -jar music-recommender.jar --version)" = "$GITHUB_SHA"
+          java -jar music-recommender.jar recommend maya --limit 1 > ranking.tsv
+          test "$(cut -f1,2 ranking.tsv | sed -n '2p')" = $'1\tt03'

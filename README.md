@@ -37,7 +37,15 @@ sha256sum -c music-recommender.jar.sha256
 java -jar music-recommender.jar --version
 ```
 
-The checksum should report `music-recommender.jar: OK`. Compare the printed revision with the full commit SHA linked from the run. On macOS, use `shasum -a 256 -c music-recommender.jar.sha256` for the checksum.
+The checksum should report `OK` for the JAR and each example TSV. Compare the printed revision with the full commit SHA linked from the run. On macOS, use `shasum -a 256 -c music-recommender.jar.sha256` for the checksum.
+
+From the extracted directory, run Maya’s example recommendation using the included catalog and listening history:
+
+```sh
+java -jar music-recommender.jar recommend maya --limit 1
+```
+
+The first result should be `t03`, **Last Train in Violet** by Copper Meridian.
 
 ## Request recommendations over HTTP
 
