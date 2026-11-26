@@ -13,6 +13,8 @@ import java.util.TreeMap;
 public final class Recommender {
     public record Recommendation(Track track, double score, String reason) {}
 
+    private static final Comparator<Recommendation> RANK_ORDER = Comparator
+            .comparingDouble(Recommendation::score).reversed().thenComparing(pick -> pick.track().id());
     private static final String PEER_REASON = "Played by listeners with similar taste";
     private static final double PEER_WEIGHT = 0.45;
     private static final double GENRE_WEIGHT = 0.25;
@@ -23,6 +25,8 @@ public final class Recommender {
     private final Map<String, Map<String, Double>> listeners = new TreeMap<>();
     private final Map<String, Double> profileNorms = new HashMap<>();
     private final Map<String, Double> popularity = new HashMap<>();
+
+    private final List<Recommendation> popularityRanking;
 
     public Recommender(MusicData data) {
         for (Track track : data.tracks()) {
@@ -45,6 +49,10 @@ public final class Recommender {
         }
         long maxPlays = totalPlays.values().stream().mapToLong(Long::longValue).max().orElse(0);
         totalPlays.forEach((id, total) -> popularity.put(id, Math.log1p(total) / Math.log1p(maxPlays)));
+        popularityRanking = catalog.values().stream().map(track -> {
+            double score = popularity.getOrDefault(track.id(), 0.0);
+            return new Recommendation(track, score, popularityReason(score));
+        }).sorted(RANK_ORDER).toList();
     }
 
     /** Returns at most limit unheard tracks, in descending score order with ties broken by ID. */
@@ -81,6 +89,9 @@ public final class Recommender {
         }
 
         Map<String, Double> heard = profileWithSeeds(userId, seedTrackIds);
+        if (heard.isEmpty()) {
+            return selectRanked(popularityRanking, limit, maxPerArtist, hiddenTrackIds);
+        }
         Map<String, Double> artists = new HashMap<>();
         Map<String, Double> genres = new HashMap<>();
         Set<String> favorites = Set.copyOf(seedTrackIds);
@@ -100,28 +111,23 @@ public final class Recommender {
             genres.merge(key(track.genre()), weight / weightSum, Double::sum);
         });
 
-        Map<String, Double> peers = heard.isEmpty() ? Map.of() : peerSupport(userId, heard);
+        Map<String, Double> peers = peerSupport(userId, heard);
         List<Recommendation> candidates = new ArrayList<>();
         for (Track track : catalog.values()) {
             if (heard.containsKey(track.id()) || hiddenTrackIds.contains(track.id())) {
                 continue;
             }
             double popular = popularity.getOrDefault(track.id(), 0.0);
-            if (heard.isEmpty()) {
-                candidates.add(new Recommendation(track, popular, popularityReason(popular)));
-            } else {
-                double peer = PEER_WEIGHT * peers.getOrDefault(track.id(), 0.0);
-                double genre = GENRE_WEIGHT * genres.getOrDefault(key(track.genre()), 0.0);
-                double artist = ARTIST_WEIGHT * artists.getOrDefault(key(track.artist()), 0.0);
-                double baseline = POPULARITY_WEIGHT * popular;
-                String reason = strongestReason(track, peer, genre, artist, baseline, favorites,
-                        genreSources.get(key(track.genre())), artistSources.get(key(track.artist())));
-                candidates.add(new Recommendation(track, peer + genre + artist + baseline, reason));
-            }
+            double peer = PEER_WEIGHT * peers.getOrDefault(track.id(), 0.0);
+            double genre = GENRE_WEIGHT * genres.getOrDefault(key(track.genre()), 0.0);
+            double artist = ARTIST_WEIGHT * artists.getOrDefault(key(track.artist()), 0.0);
+            double baseline = POPULARITY_WEIGHT * popular;
+            String reason = strongestReason(track, peer, genre, artist, baseline, favorites,
+                    genreSources.get(key(track.genre())), artistSources.get(key(track.artist())));
+            candidates.add(new Recommendation(track, peer + genre + artist + baseline, reason));
         }
-        candidates.sort(Comparator.comparingDouble(Recommendation::score).reversed()
-                .thenComparing(r -> r.track().id()));
-        var selected = selectByArtist(candidates, limit, maxPerArtist);
+        candidates.sort(RANK_ORDER);
+        var selected = selectRanked(candidates, limit, maxPerArtist, Set.of());
         if (favorites.isEmpty()) return selected;
         return selected.stream().map(pick -> pick.reason().equals(PEER_REASON)
                 ? explainPeerPick(pick, userId, heard, favorites) : pick).toList();
@@ -155,20 +161,23 @@ public final class Recommender {
         return new Recommendation(pick.track(), pick.score(), "Played by listeners who also played " + catalog.get(source).title());
     }
 
-    private static List<Recommendation> selectByArtist(List<Recommendation> candidates, int limit, int maxPerArtist) {
-        if (maxPerArtist >= limit) {
+    private static List<Recommendation> selectRanked(List<Recommendation> candidates, int limit,
+                                                     int maxPerArtist, Set<String> hiddenTrackIds) {
+        if (hiddenTrackIds.isEmpty() && maxPerArtist >= limit) {
             return List.copyOf(candidates.subList(0, Math.min(limit, candidates.size())));
         }
         Map<String, Integer> selectedByArtist = new HashMap<>();
         List<Recommendation> selected = new ArrayList<>();
         for (Recommendation candidate : candidates) {
-            String artist = key(candidate.track().artist());
-            int count = selectedByArtist.getOrDefault(artist, 0);
-            if (count < maxPerArtist) {
+            if (hiddenTrackIds.contains(candidate.track().id())) continue;
+            if (maxPerArtist < limit) {
+                String artist = key(candidate.track().artist());
+                int count = selectedByArtist.getOrDefault(artist, 0);
+                if (count >= maxPerArtist) continue;
                 selectedByArtist.put(artist, count + 1);
-                selected.add(candidate);
-                if (selected.size() == limit) break;
             }
+            selected.add(candidate);
+            if (selected.size() == limit) break;
         }
         return List.copyOf(selected);
     }
