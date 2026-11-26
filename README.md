@@ -114,6 +114,8 @@ java -jar build/music-recommender.jar hide maya t04 --feedback example-feedback.
 java -jar build/music-recommender.jar recommend maya --feedback example-feedback.tsv
 ```
 
+If the feedback directory is missing, create its parent directory and retry the same command. For example, run `mkdir -p state` before using `--feedback state/feedback.tsv`. The first successful hide creates the file.
+
 Maya's list skips *Paper Constellation* and fills the slot with the next eligible track. Other listeners can still receive it. Run `unhide maya t04 --feedback example-feedback.tsv` with the same JAR to restore the track. Its rank still depends on Maya’s listening history. Repeating either command is safe.
 
 ## Ranking

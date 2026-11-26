@@ -133,7 +133,13 @@ public final class Main {
 
             if (feedbackTrack != null) {
                 if (feedback == null) throw new IllegalArgumentException(args[0] + " requires --feedback FILE");
-                MusicData.setTrackHidden(feedback, user, feedbackTrack, MusicData.loadCatalog(tracks), args[0].equals("hide"));
+                var catalog = MusicData.loadCatalog(tracks);
+                try {
+                    MusicData.setTrackHidden(feedback, user, feedbackTrack, catalog, args[0].equals("hide"));
+                } catch (IOException e) {
+                    err.println("Could not update feedback " + feedback + ": " + e.getMessage());
+                    return 1;
+                }
                 return 0;
             }
             if (events != null || cutoff != null) {

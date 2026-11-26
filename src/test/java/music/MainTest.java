@@ -78,6 +78,13 @@ public final class MainTest {
 
             String[] withFeedback = {"recommend", "new", "--tracks", tracks.toString(), "--listens",
                     listens.toString(), "--feedback", feedback.toString(), "--limit", "1"};
+            Path unavailable = dir.resolve("missing").resolve("feedback.tsv");
+            for (String command : java.util.List.of("hide", "unhide")) {
+                Result failed = run(command, "new", "s1", "--tracks", tracks.toString(), "--feedback", unavailable.toString());
+                check(failed.status() == 1 && failed.out().isEmpty()
+                        && failed.err().startsWith("Could not update feedback " + unavailable + ": ")
+                        && failed.err().contains(unavailable + ".lock"), "Update identifies feedback path and lock failure");
+            }
             String[] hide = {"hide", "new", "s1", "--tracks", tracks.toString(), "--feedback", feedback.toString()};
             check(run(hide).status() == 0 && run(hide).status() == 0, "Repeat hide succeeds");
             String saved = Files.readString(feedback);
@@ -98,6 +105,10 @@ public final class MainTest {
             Files.writeString(feedback, header + "new\ts1\nnew\ts2\n");
             check(run(withFeedback).out().contains("No unheard tracks"), "Entire catalog hidden");
             Files.writeString(feedback, header + "new\ts1\nother\tmissing\n");
+            Result invalidUpdate = run(hide);
+            check(invalidUpdate.status() == 1 && invalidUpdate.out().isEmpty()
+                    && invalidUpdate.err().contains(feedback + ":3:") && invalidUpdate.err().contains("missing"),
+                    "Malformed feedback retains its file and line during updates");
             Result invalid = run(withFeedback);
             check(invalid.status() == 1 && invalid.err().contains(feedback + ":3:")
                     && invalid.err().contains("missing"), "Unknown feedback track includes file and line");
