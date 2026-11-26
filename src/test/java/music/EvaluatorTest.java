@@ -1,5 +1,6 @@
 package music;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -11,6 +12,7 @@ public final class EvaluatorTest {
                 new Track("b", "B", "Another Artist", "folk"),
                 new Track("y", "Y", "Shared Artist", "jazz"),
                 new Track("z", "Z", "Shared Artist", "jazz"));
+        rejectsUnknownEventTracks(tracks);
         List<Listening> history = List.of(new Listening("maya", "y", 7),
                 new Listening("maya", "z", 9), new Listening("theo", "a", 1));
         MusicData data = new MusicData(tracks, history);
@@ -31,6 +33,23 @@ public final class EvaluatorTest {
             throw new AssertionError("Expected a positive-limit check");
         } catch (IllegalArgumentException expected) {
             // Expected.
+        }
+    }
+
+    private static void rejectsUnknownEventTracks(List<Track> tracks) {
+        Instant cutoff = Instant.EPOCH;
+        var training = new MusicData.PlayEvent("maya", "a", cutoff.minusSeconds(2));
+        var unknownTraining = new MusicData.PlayEvent("maya", "missing", cutoff.minusSeconds(1));
+        var unknownFuture = new MusicData.PlayEvent("maya", "missing", cutoff.plusSeconds(1));
+        var validTarget = new MusicData.PlayEvent("maya", "b", cutoff);
+        for (var events : List.of(List.of(unknownTraining), List.of(training, unknownFuture),
+                List.of(unknownFuture), List.of(training, validTarget, unknownFuture))) {
+            try {
+                Evaluator.evaluateDiscovery(tracks, events, cutoff, 1);
+                throw new AssertionError("Accepted an event for a track outside the catalog");
+            } catch (IllegalArgumentException expected) {
+                if (!expected.getMessage().contains("missing")) throw new AssertionError(expected);
+            }
         }
     }
 

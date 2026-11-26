@@ -23,6 +23,13 @@ public final class Evaluator {
     public static DiscoveryReport evaluateDiscovery(List<Track> tracks, List<MusicData.PlayEvent> events,
                                                     Instant cutoff, int limit) {
         requirePositiveLimit(limit);
+        Set<String> trackIds = new HashSet<>();
+        for (Track track : tracks) trackIds.add(track.id());
+        for (MusicData.PlayEvent event : events) {
+            if (!trackIds.contains(event.trackId())) {
+                throw new IllegalArgumentException("Unknown track ID '" + event.trackId() + "'");
+            }
+        }
         DiscoverySplit split = DiscoverySplit.from(events, cutoff);
         Report rankings = score(new MusicData(tracks, split.training()), split.targets(), limit);
         return new DiscoveryReport(rankings, split.missingTraining(), split.missingDiscovery());
