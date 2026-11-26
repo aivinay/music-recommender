@@ -14,6 +14,7 @@ public final class RecommenderTest {
 
     public static void main(String[] args) {
         ranksForNewListeners();
+        filtersPopularityRanking();
         usesTemporaryFavorites();
         explainsPeerFavorites();
         limitsTracksPerArtist();
@@ -72,6 +73,19 @@ public final class RecommenderTest {
         close(Math.log1p(6) / Math.log1p(7), result.get(1).score());
         close(0.0, result.get(2).score());
         equal(List.of("seed"), ids(engine.recommend("new", 1)));
+    }
+
+    private static void filtersPopularityRanking() {
+        var engine = model(List.of(SEED, HIT, GENRE, ARTIST, PEER), List.of(
+                new Listening("fan", "hit", 10), new Listening("fan", "seed", 5),
+                new Listening("fan", "artist", 5)));
+        // After hiding HIT, ARTIST wins the ID tie with SEED and fills their shared artist slot.
+        var filtered = engine.recommend("new", 3, 1, Set.of("hit"));
+        double score = Math.log1p(5) / Math.log1p(10);
+        equal(List.of(new Recommender.Recommendation(ARTIST, score, "Popular across listening history"),
+                new Recommender.Recommendation(GENRE, 0, "Explore an unplayed catalog track"),
+                new Recommender.Recommendation(PEER, 0, "Explore an unplayed catalog track")), filtered);
+        equal(List.of("hit", "artist", "seed"), ids(engine.recommend("another", 3)));
     }
 
     private static void limitsTracksPerArtist() {
