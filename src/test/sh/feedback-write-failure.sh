@@ -8,6 +8,10 @@ trap 'rm -rf "$work"' EXIT
 feedback="$work/feedback.tsv"
 # Start with a valid file larger than the child process may write.
 awk 'BEGIN { print "user_id\ttrack_id"; for (i = 0; i < 500; i++) print "listener-" i "\tt01" }' > "$feedback"
+chmod 640 "$feedback"
+check_mode() {
+    [[ $(LC_ALL=C ls -ld "$feedback" | cut -c 2-10) == rw-r----- ]]
+}
 cp "$feedback" "$work/original.tsv"
 status=0
 (
@@ -22,7 +26,11 @@ if [[ $status != 1 ]] || ! grep -qi 'file too large' "$work/error"; then
     exit 1
 fi
 cmp "$work/original.tsv" "$feedback"
+check_mode
 # A fresh invocation can retry using the original data.
 "$java_bin" -jar "$jar" hide maya t04 --feedback "$feedback"
 printf 'maya\tt04\n' >> "$work/original.tsv"
 cmp "$work/original.tsv" "$feedback"
+check_mode
+"$java_bin" -jar "$jar" unhide maya t04 --feedback "$feedback"
+check_mode

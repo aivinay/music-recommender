@@ -10,6 +10,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
@@ -140,10 +141,12 @@ public record MusicData(List<Track> tracks, List<Listening> history) {
         Path lock = target.resolveSibling(target.getFileName() + ".lock");
         try (var channel = FileChannel.open(lock, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
              var held = channel.lock()) {
+            boolean existing = true;
             List<UserTrack> rows;
             try {
                 rows = readFeedback(target, catalog);
             } catch (NoSuchFileException absent) {
+                existing = false;
                 rows = new ArrayList<>();
             }
             UserTrack entry = new UserTrack(user, trackId);
@@ -160,6 +163,14 @@ public record MusicData(List<Track> tracks, List<Listening> history) {
                     for (UserTrack row : rows) {
                         writer.write(row.userId() + "\t" + row.trackId() + "\n");
                     }
+                }
+                if (existing && Files.getFileStore(temp).supportsFileAttributeView(PosixFileAttributeView.class)) {
+                    var original = Files.getFileAttributeView(target, PosixFileAttributeView.class).readAttributes();
+                    var replacement = Files.getFileAttributeView(temp, PosixFileAttributeView.class);
+                    if (!replacement.readAttributes().group().equals(original.group())) {
+                        replacement.setGroup(original.group());
+                    }
+                    replacement.setPermissions(original.permissions());
                 }
                 Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } finally {
