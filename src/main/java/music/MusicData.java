@@ -83,7 +83,13 @@ public record MusicData(List<Track> tracks, List<Listening> history) {
     }
 
     /** One play in a chronological evaluation, with the supplied offset resolved to UTC. */
-    public record PlayEvent(String userId, String trackId, Instant playedAt) {}
+    public record PlayEvent(String userId, String trackId, Instant playedAt) {
+        public PlayEvent {
+            if (userId == null || userId.isBlank()) throw new IllegalArgumentException("userId must not be blank");
+            if (trackId == null || trackId.isBlank()) throw new IllegalArgumentException("trackId must not be blank");
+            if (playedAt == null) throw new IllegalArgumentException("playedAt is required");
+        }
+    }
 
     public static List<PlayEvent> loadEvents(Path events, List<Track> catalog) throws IOException {
         Set<String> trackIds = new HashSet<>();

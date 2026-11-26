@@ -3,6 +3,7 @@ package music;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 
 public final class MusicDataTest {
@@ -13,6 +14,7 @@ public final class MusicDataTest {
 
     public static void main(String[] args) throws IOException {
         testDomainValidation();
+        testEventFields();
         testEventTable();
         Path dir = Files.createTempDirectory("music-data-test");
         Path catalog = dir.resolve("catalog.tsv");
@@ -51,6 +53,17 @@ public final class MusicDataTest {
             Files.deleteIfExists(catalog);
             Files.deleteIfExists(dir);
         }
+    }
+
+    private static void testEventFields() {
+        for (String invalid : new String[] {null, "", "  ", "\t"}) {
+            var listenerError = rejects("event userId", () -> new MusicData.PlayEvent(invalid, "t1", Instant.EPOCH));
+            check(listenerError.getMessage().contains("userId"), "Error must identify userId");
+            var trackError = rejects("event trackId", () -> new MusicData.PlayEvent("u1", invalid, Instant.EPOCH));
+            check(trackError.getMessage().contains("trackId"), "Error must identify trackId");
+        }
+        var timeError = rejects("event playedAt", () -> new MusicData.PlayEvent("u1", "t1", null));
+        check(timeError.getMessage().contains("playedAt"), "Error must identify playedAt");
     }
 
     private static void testEventTable() throws IOException {
@@ -100,11 +113,11 @@ public final class MusicDataTest {
         rejects("duplicate listener-track pair", () -> new MusicData(List.of(track), List.of(heard, samePair)));
     }
 
-    private static void rejects(String description, Runnable construct) {
+    private static IllegalArgumentException rejects(String description, Runnable construct) {
         try {
             construct.run();
         } catch (IllegalArgumentException expected) {
-            return;
+            return expected;
         }
         throw new AssertionError("Expected constructor to reject " + description);
     }
