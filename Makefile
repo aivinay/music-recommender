@@ -4,7 +4,9 @@ JAR = jar
 MAIN_SOURCES := $(wildcard src/main/java/music/*.java)
 TEST_SOURCES := $(wildcard src/test/java/music/*Test.java)
 TEST_CLASSES := $(patsubst src/test/java/music/%.java,music.%,$(TEST_SOURCES))
-REVISION ?= $(shell git --git-dir=.git rev-parse --verify HEAD 2>/dev/null || echo unknown)
+ifeq ($(origin REVISION), undefined)
+REVISION := $(shell sh scripts/source-revision.sh)
+endif
 export REVISION
 ARTIFACT := build/music-recommender.jar
 
@@ -33,6 +35,7 @@ test: build
 	@$(JAVA) -jar $(ARTIFACT) evaluate --limit 3 > /dev/null
 	@bash src/test/sh/feedback-write-failure.sh "$(JAVA)" "$(ARTIFACT)"
 	@bash src/test/sh/packaged-readiness.sh "$(JAVA)" "$(ARTIFACT)"
+	@if command -v git >/dev/null; then bash src/test/sh/source-revision.sh; fi
 
 clean:
 	rm -rf build

@@ -26,7 +26,7 @@ make test
 
 ## Identify a deployed build
 
-Run `java -jar /path/to/music-recommender.jar --version` from any directory to print the Git commit recorded at build time. A source archive without Git metadata reports `unknown` by default. If the source revision is known, supply it when packaging with `make build REVISION=<commit>` (replace `<commit>` with the actual identifier).
+Run `java -jar /path/to/music-recommender.jar --version` from any directory to print the Git commit recorded at build time. The default build appends `-dirty` when Git reports staged or unstaged changes under `src/main/java`, in the Makefile, or in `scripts/source-revision.sh`. This includes untracked, non-ignored files in that scope. Generated build output, documentation, tests, and example data do not affect the marker. The CLI and HTTP endpoint report the value embedded at build time. A source archive without Git metadata reports `unknown` by default. If the source revision is known, supply it when packaging with `make build REVISION=<commit>` (replace `<commit>` with the actual identifier).
 
 ### Download a tested JAR
 
