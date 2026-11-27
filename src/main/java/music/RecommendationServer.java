@@ -67,13 +67,16 @@ final class RecommendationServer implements AutoCloseable {
         try {
             if (query != null) {
                 for (String field : query.split("&")) {
+                    if (field.isEmpty()) continue;
                     String[] parts = field.split("=", 2);
+                    String name = URLDecoder.decode(parts[0], StandardCharsets.UTF_8);
                     String value = parts.length == 2 ? URLDecoder.decode(parts[1], StandardCharsets.UTF_8) : "";
-                    switch (URLDecoder.decode(parts[0], StandardCharsets.UTF_8)) {
+                    switch (name) {
                         case "user" -> user = value;
                         case "seed-track" -> seeds.add(value);
                         case "limit" -> limit = parseInteger("limit", value);
                         case "max-per-artist" -> maxPerArtist = parseInteger("max-per-artist", value);
+                        default -> throw new IllegalArgumentException("Unknown query parameter '" + name + "'");
                     }
                 }
             }

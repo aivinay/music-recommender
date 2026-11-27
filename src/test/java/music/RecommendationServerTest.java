@@ -22,6 +22,11 @@ public final class RecommendationServerTest {
             assertRanking(maya.get(10, TimeUnit.SECONDS), model.recommend("maya", 3));
             assertRanking(theo.get(10, TimeUnit.SECONDS), model.recommend("theo", 1));
 
+            assertBadRequest(client, server.port(), "?user=maya&limti=1", "Unknown query parameter 'limti'");
+            assertBadRequest(client, server.port(), "?user=maya&bad%22name=x", "Unknown query parameter 'bad\\\"name'");
+            var encoded = request(client, server.port(), "?user=maya&%6cimit=1");
+            assertRanking(encoded.get(10, TimeUnit.SECONDS), model.recommend("maya", 1));
+
             var favorites = List.of("t01", "t04");
             var seeded = request(client, server.port(), "?user=new&seed-track=t01&seed-track=t04");
             assertRanking(seeded.get(10, TimeUnit.SECONDS),
