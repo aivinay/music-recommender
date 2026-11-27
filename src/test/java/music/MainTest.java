@@ -105,6 +105,10 @@ public final class MainTest {
             Files.writeString(feedback, header + "new\ts1\nnew\ts2\n");
             check(run(withFeedback).out().contains("No unheard tracks"), "Entire catalog hidden");
             Files.writeString(feedback, header + "new\ts1\nother\tmissing\n");
+            Result startup = run("serve", "--port", "0", "--tracks", tracks.toString(),
+                    "--listens", listens.toString(), "--feedback", feedback.toString());
+            check(startup.status() == 1 && startup.out().isEmpty() && startup.err().contains(feedback + ":3:")
+                    && startup.err().contains("missing"), "Malformed feedback prevents server startup");
             Result invalidUpdate = run(hide);
             check(invalidUpdate.status() == 1 && invalidUpdate.out().isEmpty()
                     && invalidUpdate.err().contains(feedback + ":3:") && invalidUpdate.err().contains("missing"),

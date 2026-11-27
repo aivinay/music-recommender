@@ -120,6 +120,14 @@ If the feedback directory is missing, create its parent directory and retry the 
 
 Maya's list skips *Paper Constellation* and fills the slot with the next eligible track. Other listeners can still receive it. Run `unhide maya t04 --feedback example-feedback.tsv` with the same JAR to restore the track. Its rank still depends on Maya’s listening history. Repeating either command is safe.
 
+To serve recommendations using the same exclusions, start the server from the repository root:
+
+```sh
+java -jar build/music-recommender.jar serve --port 8080 --feedback example-feedback.tsv
+```
+
+From another terminal, run `curl -fsS 'http://127.0.0.1:8080/recommendations?user=maya&limit=5'`. The server reads the feedback file at startup and applies only the requested listener’s exclusions. Restart it after changing the file to load the new feedback.
+
 ## Ranking
 
 The engine excludes tracks the listener has already played. For each remaining track it computes a weighted sum. The explanation names the largest contribution.

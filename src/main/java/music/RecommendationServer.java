@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -37,6 +38,11 @@ final class RecommendationServer implements AutoCloseable {
     }
 
     static RecommendationServer start(Recommender model, int port, int defaultLimit) throws IOException {
+        return start(model, port, defaultLimit, Map.of());
+    }
+
+    static RecommendationServer start(Recommender model, int port, int defaultLimit,
+                                      Map<String, Set<String>> hiddenByListener) throws IOException {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
         server.createContext("/", exchange -> {
             try {
@@ -49,7 +55,7 @@ final class RecommendationServer implements AutoCloseable {
                 } else if (path.equals("/ready")) {
                     reply(exchange, 200, "{\"status\":\"ready\"}");
                 } else {
-                    handle(exchange, model, defaultLimit);
+                    handle(exchange, model, defaultLimit, hiddenByListener);
                 }
             } finally {
                 exchange.close();
@@ -60,7 +66,8 @@ final class RecommendationServer implements AutoCloseable {
         return service;
     }
 
-    private static void handle(HttpExchange exchange, Recommender model, int limit) throws IOException {
+    private static void handle(HttpExchange exchange, Recommender model, int limit,
+                               Map<String, Set<String>> hiddenByListener) throws IOException {
         String user = null;
         int maxPerArtist = Integer.MAX_VALUE;
         List<String> seeds = new ArrayList<>();
@@ -85,7 +92,8 @@ final class RecommendationServer implements AutoCloseable {
                     }
                 }
             }
-            reply(exchange, 200, json(model.recommend(user, limit, maxPerArtist, Set.of(), seeds)));
+            Set<String> hidden = user == null ? Set.of() : hiddenByListener.getOrDefault(user, Set.of());
+            reply(exchange, 200, json(model.recommend(user, limit, maxPerArtist, hidden, seeds)));
 
         } catch (IllegalArgumentException e) {
             reply(exchange, 400, "{\"error\":" + quote(e.getMessage()) + "}");

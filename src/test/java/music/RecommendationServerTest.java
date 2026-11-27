@@ -6,6 +6,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.CompletableFuture;
@@ -91,12 +92,14 @@ public final class RecommendationServerTest {
         var favorite = new Track("z", "Favorite", "Artist", "Jazz");
         var history = List.of(new Listening("regular", "a", 1), new Listening("regular", "z", 9));
         var model = new Recommender(new MusicData(List.of(first, favorite), history));
-        try (var server = RecommendationServer.start(model, 0, 1)) {
+        try (var server = RecommendationServer.start(model, 0, 1, Map.of("hidden", Set.of("a", "z")))) {
             var client = HttpClient.newHttpClient();
             var newcomer = request(client, server.port(), "?user=new").get(10, TimeUnit.SECONDS);
             assertRanking(newcomer, List.of(new Recommender.Recommendation(
                     favorite, 1.0, "Popular across listening history")));
 
+            var hidden = request(client, server.port(), "?user=hidden").get(10, TimeUnit.SECONDS);
+            assertRanking(hidden, List.of());
             var regular = request(client, server.port(), "?user=regular").get(10, TimeUnit.SECONDS);
             assertRanking(regular, List.of());
         }

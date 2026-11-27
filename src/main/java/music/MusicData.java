@@ -15,8 +15,10 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -119,6 +121,15 @@ public record MusicData(List<Track> tracks, List<Listening> history) {
             }
         }
         return hidden;
+    }
+
+    static Map<String, Set<String>> loadHiddenTracksByListener(Path feedback, List<Track> catalog) throws IOException {
+        Map<String, Set<String>> hidden = new HashMap<>();
+        for (UserTrack row : readFeedback(feedback, catalog)) {
+            hidden.computeIfAbsent(row.userId(), id -> new HashSet<>()).add(row.trackId());
+        }
+        hidden.replaceAll((id, tracks) -> Set.copyOf(tracks));
+        return Map.copyOf(hidden);
     }
 
     private static List<UserTrack> readFeedback(Path feedback, List<Track> catalog) throws IOException {

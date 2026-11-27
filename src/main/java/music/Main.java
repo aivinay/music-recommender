@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 public final class Main {
@@ -29,7 +30,7 @@ public final class Main {
               --port N          HTTP port for serve (default 8080, 0 for ephemeral)
               --tracks FILE     Track catalog (default examples/tracks.tsv)
               --listens FILE    Listening history (default examples/listens.tsv)
-              --feedback FILE   Listener feedback for recommend, hide, and unhide
+              --feedback FILE   Listener feedback for serve, recommend, hide, and unhide
               --events FILE     Timestamped plays for chronological evaluation
               --cutoff TIME     Evaluation boundary with UTC offset (requires --events)
               --version         Print the packaged source revision and exit
@@ -98,7 +99,7 @@ public final class Main {
                     case "--tracks" -> tracks = Path.of(value);
                     case "--listens" -> listens = Path.of(value);
                     case "--feedback" -> {
-                        if (user == null) throw new IllegalArgumentException("--feedback requires recommend, hide, or unhide");
+                        if (args[0].equals("evaluate")) throw new IllegalArgumentException("--feedback requires serve, recommend, hide, or unhide");
                         feedback = Path.of(value);
                     }
                     case "--events" -> events = Path.of(value);
@@ -161,8 +162,10 @@ public final class Main {
 
             MusicData data = MusicData.load(tracks, listens == null ? Path.of("examples", "listens.tsv") : listens);
             if (args[0].equals("serve")) {
+                Map<String, Set<String>> hidden = feedback == null ? Map.of()
+                        : MusicData.loadHiddenTracksByListener(feedback, data.tracks());
                 try {
-                    var server = RecommendationServer.start(new Recommender(data), port, limit);
+                    var server = RecommendationServer.start(new Recommender(data), port, limit, hidden);
                     out.println("Listening on http://127.0.0.1:" + server.port());
                 } catch (IOException e) {
                     err.println("Could not start HTTP server on 127.0.0.1:" + port + ": " + e.getMessage());
