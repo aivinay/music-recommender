@@ -24,6 +24,12 @@ public final class RecommendationServerTest {
 
             assertBadRequest(client, server.port(), "?user=maya&limti=1", "Unknown query parameter 'limti'");
             assertBadRequest(client, server.port(), "?user=maya&bad%22name=x", "Unknown query parameter 'bad\\\"name'");
+            for (String repeated : List.of("limit=1&limit=3", "limit=3&limit=1", "limit=1&%6cimit=1")) {
+                assertBadRequest(client, server.port(), "?user=maya&" + repeated, "Duplicate query parameter 'limit'");
+            }
+            assertBadRequest(client, server.port(), "?user=maya&user=theo", "Duplicate query parameter 'user'");
+            assertBadRequest(client, server.port(), "?user=maya&max-per-artist=1&max-per-artist=2",
+                    "Duplicate query parameter 'max-per-artist'");
             var encoded = request(client, server.port(), "?user=maya&%6cimit=1");
             assertRanking(encoded.get(10, TimeUnit.SECONDS), model.recommend("maya", 1));
 

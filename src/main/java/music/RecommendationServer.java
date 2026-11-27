@@ -7,6 +7,7 @@ import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -66,10 +67,14 @@ final class RecommendationServer implements AutoCloseable {
         String query = exchange.getRequestURI().getRawQuery();
         try {
             if (query != null) {
+                Set<String> seen = new HashSet<>();
                 for (String field : query.split("&")) {
                     if (field.isEmpty()) continue;
                     String[] parts = field.split("=", 2);
                     String name = URLDecoder.decode(parts[0], StandardCharsets.UTF_8);
+                    if (!name.equals("seed-track") && !seen.add(name)) {
+                        throw new IllegalArgumentException("Duplicate query parameter '" + name + "'");
+                    }
                     String value = parts.length == 2 ? URLDecoder.decode(parts[1], StandardCharsets.UTF_8) : "";
                     switch (name) {
                         case "user" -> user = value;

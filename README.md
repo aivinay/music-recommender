@@ -85,7 +85,7 @@ curl -fsS "${base_url}/recommendations?user=new&limit=5&seed-track=t01&seed-trac
 
 Both options apply only to this request. Each favorite must be a catalog track ID, and the artist limit must be a positive integer.
 
-If a parameter name is misspelled, the service returns HTTP 400 with a JSON error. For example, `limti=1` produces `{"error":"Unknown query parameter 'limti'"}`. Correct it to `limit=1` and retry. Supported names are `user`, `limit`, `seed-track`, and `max-per-artist`.
+If a parameter name is misspelled, the service returns HTTP 400 with a JSON error. For example, `limti=1` produces `{"error":"Unknown query parameter 'limti'"}`. Correct it to `limit=1` and retry. Supply `user`, `limit`, and `max-per-artist` at most once each. Repeating one returns HTTP 400 and names the duplicate. Only `seed-track` may repeat.
 
 ## Supply your own music
 
