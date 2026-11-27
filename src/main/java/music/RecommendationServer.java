@@ -44,14 +44,17 @@ final class RecommendationServer implements AutoCloseable {
     static RecommendationServer start(Recommender model, int port, int defaultLimit,
                                       Map<String, Set<String>> hiddenByListener) throws IOException {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        String versionJson = "{\"revision\":" + quote(Main.revision()) + "}";
         server.createContext("/", exchange -> {
             try {
                 String path = exchange.getRequestURI().getPath();
-                if (!path.equals("/ready") && !path.equals("/recommendations")) {
+                if (!path.equals("/ready") && !path.equals("/version") && !path.equals("/recommendations")) {
                     reply(exchange, 404, "{\"error\":\"Unknown path\"}");
                 } else if (!exchange.getRequestMethod().equals("GET")) {
                     exchange.getResponseHeaders().set("Allow", "GET");
                     reply(exchange, 405, "{\"error\":\"GET required\"}");
+                } else if (path.equals("/version")) {
+                    reply(exchange, 200, versionJson);
                 } else if (path.equals("/ready")) {
                     reply(exchange, 200, "{\"status\":\"ready\"}");
                 } else {

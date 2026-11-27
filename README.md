@@ -77,6 +77,8 @@ curl -fsS "${base_url}/recommendations?user=maya&limit=1"
 
 After startup, `curl -fsS "${base_url}/ready"` returns `{"status":"ready"}` when the model is loaded and the HTTP service is accepting requests.
 
+To identify the build serving that port, run `curl -fsS "${base_url}/version"`. The JSON `revision` field contains the same value as the running JAR’s `--version` command, including `unknown` for builds without revision metadata.
+
 To personalize a new listener’s list with two favorites and return at most one song per artist, use the same server URL:
 
 ```sh

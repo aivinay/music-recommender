@@ -44,6 +44,11 @@ public final class Main {
         if (status != 0) System.exit(status);
     }
 
+    static String revision() {
+        String revision = Main.class.getPackage().getImplementationVersion();
+        return revision == null ? "unknown" : revision;
+    }
+
     static int run(String[] args, PrintStream out, PrintStream err) {
         if (args.length == 0 || Arrays.asList(args).contains("--help")) {
             out.print(USAGE);
@@ -51,8 +56,7 @@ public final class Main {
         }
 
         if (args.length == 1 && args[0].equals("--version")) {
-            String revision = Main.class.getPackage().getImplementationVersion();
-            out.println(revision == null ? "unknown" : revision);
+            out.println(revision());
             return 0;
         }
 

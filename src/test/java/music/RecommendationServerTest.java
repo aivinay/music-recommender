@@ -17,7 +17,7 @@ public final class RecommendationServerTest {
         var model = new Recommender(MusicData.load(Path.of("examples/tracks.tsv"), Path.of("examples/listens.tsv")));
         try (var server = RecommendationServer.start(model, 0, 5)) {
             var client = HttpClient.newHttpClient();
-            assertReadiness(client, server.port());
+            assertServiceEndpoints(client, server.port());
             var maya = request(client, server.port(), "?user=maya&limit=3");
             var theo = request(client, server.port(), "?user=theo&limit=1");
             assertRanking(maya.get(10, TimeUnit.SECONDS), model.recommend("maya", 3));
@@ -66,7 +66,7 @@ public final class RecommendationServerTest {
         assertListenerHistoryExtremes();
     }
 
-    private static void assertReadiness(HttpClient client, int port) throws Exception {
+    private static void assertServiceEndpoints(HttpClient client, int port) throws Exception {
         var uri = URI.create("http://127.0.0.1:" + port + "/ready");
         var body = HttpResponse.BodyHandlers.ofString();
         var ready = client.send(HttpRequest.newBuilder(uri).build(), body);
@@ -74,11 +74,19 @@ public final class RecommendationServerTest {
                 || !ready.headers().firstValue("Content-Type").orElse("").startsWith("application/json")) {
             throw new AssertionError("Unexpected readiness response: " + ready + " " + ready.body());
         }
-        var post = client.send(HttpRequest.newBuilder(uri).POST(HttpRequest.BodyPublishers.noBody()).build(), body);
-        if (post.statusCode() != 405 || !post.headers().firstValue("Allow").orElse("").equals("GET")) {
-            throw new AssertionError("Unexpected readiness method response: " + post);
+        var version = client.send(HttpRequest.newBuilder(uri.resolve("/version")).build(), body);
+        if (version.statusCode() != 200 || !version.body().equals("{\"revision\":\"unknown\"}")
+                || !version.headers().firstValue("Content-Type").orElse("").startsWith("application/json")) {
+            throw new AssertionError("Unexpected classpath version response: " + version + " " + version.body());
         }
-        for (String path : List.of("/", "/missing", "/ready/extra", "/recommendations/extra")) {
+        for (String path : List.of("/ready", "/version")) {
+            var request = HttpRequest.newBuilder(uri.resolve(path)).POST(HttpRequest.BodyPublishers.noBody()).build();
+            var post = client.send(request, body);
+            if (post.statusCode() != 405 || !post.headers().firstValue("Allow").orElse("").equals("GET")) {
+                throw new AssertionError("Unexpected method response for " + path + ": " + post);
+            }
+        }
+        for (String path : List.of("/", "/missing", "/ready/extra", "/version/extra", "/recommendations/extra")) {
             var response = client.send(HttpRequest.newBuilder(uri.resolve(path)).build(), body);
             if (response.statusCode() != 404 || !response.body().equals("{\"error\":\"Unknown path\"}")
                     || !response.headers().firstValue("Content-Type").orElse("").equals("application/json; charset=utf-8")) {
