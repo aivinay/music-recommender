@@ -18,6 +18,7 @@ public final class RecommendationServerTest {
         try (var server = RecommendationServer.start(model, 0, 5)) {
             var client = HttpClient.newHttpClient();
             assertServiceEndpoints(client, server.port());
+            assertMetrics(client, server.port(), 0, 0);
             var maya = request(client, server.port(), "?user=maya&limit=3");
             var theo = request(client, server.port(), "?user=theo&limit=1");
             assertRanking(maya.get(10, TimeUnit.SECONDS), model.recommend("maya", 3));
@@ -25,6 +26,8 @@ public final class RecommendationServerTest {
 
             assertBadRequest(client, server.port(), "?user=maya&limti=1", "Unknown query parameter 'limti'");
             assertBadRequest(client, server.port(), "?user=maya&bad%22name=x", "Unknown query parameter 'bad\\\"name'");
+            assertMetrics(client, server.port(), 2, 2);
+            assertMetrics(client, server.port(), 2, 2);
             for (String repeated : List.of("limit=1&limit=3", "limit=3&limit=1", "limit=1&%6cimit=1")) {
                 assertBadRequest(client, server.port(), "?user=maya&" + repeated, "Duplicate query parameter 'limit'");
             }
@@ -66,6 +69,18 @@ public final class RecommendationServerTest {
         assertListenerHistoryExtremes();
     }
 
+    private static void assertMetrics(HttpClient client, int port, int ok, int rejected) throws Exception {
+        var uri = URI.create("http://127.0.0.1:" + port + "/metrics");
+        var response = client.send(HttpRequest.newBuilder(uri).build(), HttpResponse.BodyHandlers.ofString());
+        String expected = "# TYPE music_recommendation_requests_total counter\n"
+                + "music_recommendation_requests_total{status=\"200\"} " + ok + "\n"
+                + "music_recommendation_requests_total{status=\"400\"} " + rejected + "\n";
+        if (response.statusCode() != 200 || !response.body().equals(expected)
+                || !response.headers().firstValue("Content-Type").orElse("").startsWith("text/plain; version=0.0.4")) {
+            throw new AssertionError("Unexpected metrics response: " + response + " " + response.body());
+        }
+    }
+
     private static void assertServiceEndpoints(HttpClient client, int port) throws Exception {
         var uri = URI.create("http://127.0.0.1:" + port + "/ready");
         var body = HttpResponse.BodyHandlers.ofString();
@@ -79,14 +94,14 @@ public final class RecommendationServerTest {
                 || !version.headers().firstValue("Content-Type").orElse("").startsWith("application/json")) {
             throw new AssertionError("Unexpected classpath version response: " + version + " " + version.body());
         }
-        for (String path : List.of("/ready", "/version")) {
+        for (String path : List.of("/ready", "/version", "/metrics", "/recommendations")) {
             var request = HttpRequest.newBuilder(uri.resolve(path)).POST(HttpRequest.BodyPublishers.noBody()).build();
             var post = client.send(request, body);
             if (post.statusCode() != 405 || !post.headers().firstValue("Allow").orElse("").equals("GET")) {
                 throw new AssertionError("Unexpected method response for " + path + ": " + post);
             }
         }
-        for (String path : List.of("/", "/missing", "/ready/extra", "/version/extra", "/recommendations/extra")) {
+        for (String path : List.of("/", "/missing", "/ready/extra", "/version/extra", "/metrics/extra", "/recommendations/extra")) {
             var response = client.send(HttpRequest.newBuilder(uri.resolve(path)).build(), body);
             if (response.statusCode() != 404 || !response.body().equals("{\"error\":\"Unknown path\"}")
                     || !response.headers().firstValue("Content-Type").orElse("").equals("application/json; charset=utf-8")) {

@@ -15,8 +15,11 @@ import java.util.StringJoiner;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 final class RecommendationServer implements AutoCloseable {
+    private final AtomicLong successfulRequests = new AtomicLong();
+    private final AtomicLong rejectedRequests = new AtomicLong();
     private final HttpServer server;
     private final ThreadPoolExecutor workers;
 
@@ -44,32 +47,41 @@ final class RecommendationServer implements AutoCloseable {
     static RecommendationServer start(Recommender model, int port, int defaultLimit,
                                       Map<String, Set<String>> hiddenByListener) throws IOException {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        var service = new RecommendationServer(server);
         String versionJson = "{\"revision\":" + quote(Main.revision()) + "}";
         server.createContext("/", exchange -> {
             try {
                 String path = exchange.getRequestURI().getPath();
-                if (!path.equals("/ready") && !path.equals("/version") && !path.equals("/recommendations")) {
+                if (!path.equals("/ready") && !path.equals("/version") && !path.equals("/metrics")
+                        && !path.equals("/recommendations")) {
                     reply(exchange, 404, "{\"error\":\"Unknown path\"}");
                 } else if (!exchange.getRequestMethod().equals("GET")) {
                     exchange.getResponseHeaders().set("Allow", "GET");
                     reply(exchange, 405, "{\"error\":\"GET required\"}");
+                } else if (path.equals("/metrics")) {
+                    reply(exchange, 200, "text/plain; version=0.0.4; charset=utf-8", service.metrics());
                 } else if (path.equals("/version")) {
                     reply(exchange, 200, versionJson);
                 } else if (path.equals("/ready")) {
                     reply(exchange, 200, "{\"status\":\"ready\"}");
                 } else {
-                    handle(exchange, model, defaultLimit, hiddenByListener);
+                    service.handle(exchange, model, defaultLimit, hiddenByListener);
                 }
             } finally {
                 exchange.close();
             }
         });
-        var service = new RecommendationServer(server);
         server.start();
         return service;
     }
 
-    private static void handle(HttpExchange exchange, Recommender model, int limit,
+    private String metrics() {
+        return "# TYPE music_recommendation_requests_total counter\n"
+                + "music_recommendation_requests_total{status=\"200\"} " + successfulRequests.get() + "\n"
+                + "music_recommendation_requests_total{status=\"400\"} " + rejectedRequests.get() + "\n";
+    }
+
+    private void handle(HttpExchange exchange, Recommender model, int limit,
                                Map<String, Set<String>> hiddenByListener) throws IOException {
         String user = null;
         int maxPerArtist = Integer.MAX_VALUE;
@@ -96,9 +108,12 @@ final class RecommendationServer implements AutoCloseable {
                 }
             }
             Set<String> hidden = user == null ? Set.of() : hiddenByListener.getOrDefault(user, Set.of());
-            reply(exchange, 200, json(model.recommend(user, limit, maxPerArtist, hidden, seeds)));
+            String result = json(model.recommend(user, limit, maxPerArtist, hidden, seeds));
+            successfulRequests.incrementAndGet();
+            reply(exchange, 200, result);
 
         } catch (IllegalArgumentException e) {
+            rejectedRequests.incrementAndGet();
             reply(exchange, 400, "{\"error\":" + quote(e.getMessage()) + "}");
         }
     }
@@ -133,8 +148,12 @@ final class RecommendationServer implements AutoCloseable {
     }
 
     private static void reply(HttpExchange exchange, int status, String json) throws IOException {
-        byte[] body = json.getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
+        reply(exchange, status, "application/json; charset=utf-8", json);
+    }
+
+    private static void reply(HttpExchange exchange, int status, String contentType, String text) throws IOException {
+        byte[] body = text.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", contentType);
         exchange.sendResponseHeaders(status, body.length);
         exchange.getResponseBody().write(body);
     }

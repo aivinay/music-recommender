@@ -79,6 +79,16 @@ curl -fsS "${base_url}/recommendations?user=maya&limit=1"
 
 After startup, `curl -fsS "${base_url}/ready"` returns `{"status":"ready"}` when the model is loaded and the HTTP service is accepting requests.
 
+Scrape `curl -fsS "${base_url}/metrics"` for recommendation request counts since startup. For example, after two successful recommendation requests and one invalid request:
+
+```text
+# TYPE music_recommendation_requests_total counter
+music_recommendation_requests_total{status="200"} 2
+music_recommendation_requests_total{status="400"} 1
+```
+
+Only GET requests to `/recommendations` contribute to these counters. Scrapes and readiness checks leave the counts unchanged.
+
 To identify the build serving that port, run `curl -fsS "${base_url}/version"`. The JSON `revision` field contains the same value as the running JAR’s `--version` command, including `unknown` for builds without revision metadata.
 
 To personalize a new listener’s list with two favorites and return at most one song per artist, use the same server URL:
