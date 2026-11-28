@@ -4,7 +4,7 @@ A Java 17 library and command-line app that recommends songs a listener has yet 
 
 ## Run the demo
 
-You need a JDK (17 or newer) and Make. Run these commands from the repository root. The build uses the JDK alone, and the demo includes 14 fictional songs and six listeners.
+You need Make and a JDK (17 or newer) whose `jar` tool supports `--date`. Run these commands from the repository root. The build uses the JDK alone, and the demo includes 14 fictional songs and six listeners.
 
 ```sh
 make build
@@ -27,6 +27,8 @@ make test
 ## Identify a deployed build
 
 Run `java -jar /path/to/music-recommender.jar --version` from any directory to print the Git commit recorded at build time. The default build appends `-dirty` when Git reports staged or unstaged changes under `src/main/java`, in the Makefile, or in `scripts/source-revision.sh`. This includes untracked, non-ignored files in that scope. Generated build output, documentation, tests, and example data do not affect the marker. The CLI and HTTP endpoint report the value embedded at build time. A source archive without Git metadata reports `unknown` by default. If the source revision is known, supply it when packaging with `make build REVISION=<commit>` (replace `<commit>` with the actual identifier).
+
+With identical application sources, revision metadata, and JDK toolchain (including vendor and version), repeated builds produce byte-identical JARs. The build gives every archive entry a fixed timestamp so build time does not affect the checksum.
 
 ### Download a tested JAR
 

@@ -18,7 +18,7 @@ build:
 	mkdir -p build/classes
 	$(JAVAC) --release 17 -encoding UTF-8 -d build/classes $(MAIN_SOURCES)
 	printf 'Implementation-Version: %s\n' "$$REVISION" > build/manifest.mf
-	$(JAR) --create --manifest build/manifest.mf --file $(ARTIFACT) --main-class music.Main -C build/classes .
+	$(JAR) --create --date=2000-01-01T00:00:00Z --manifest build/manifest.mf --file $(ARTIFACT) --main-class music.Main -C build/classes .
 
 test: build
 	rm -rf build/test-classes
@@ -35,6 +35,7 @@ test: build
 	@$(JAVA) -jar $(ARTIFACT) evaluate --limit 3 > /dev/null
 	@bash src/test/sh/feedback-write-failure.sh "$(JAVA)" "$(ARTIFACT)"
 	@bash src/test/sh/packaged-readiness.sh "$(JAVA)" "$(ARTIFACT)"
+	@bash src/test/sh/reproducible-jar.sh "$(MAKE)" "$(JAVAC)" "$(JAR)" "$(ARTIFACT)"
 	@if command -v git >/dev/null; then bash src/test/sh/source-revision.sh; fi
 
 clean:
