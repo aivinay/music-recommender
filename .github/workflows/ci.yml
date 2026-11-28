@@ -24,7 +24,10 @@ jobs:
         run: |
           mkdir -p examples
           cp ../examples/{tracks,listens,chronological-plays}.tsv examples/
-          sha256sum music-recommender.jar examples/*.tsv > music-recommender.jar.sha256
+          printf 'source.sha = %s\n' "$GITHUB_SHA" > build-info.txt
+          java -XshowSettings:properties -version 2>&1 |
+            sed -nE 's/^ +((java\.vendor|java\.runtime\.version|os\.name|os\.arch) = .+)$/\1/p' >> build-info.txt
+          sha256sum music-recommender.jar build-info.txt examples/*.tsv > music-recommender.jar.sha256
       - name: Upload the demo package
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.java == '17'
         uses: actions/upload-artifact@v7
@@ -33,6 +36,7 @@ jobs:
           path: |
             build/music-recommender.jar
             build/music-recommender.jar.sha256
+            build/build-info.txt
             build/examples/*.tsv
           if-no-files-found: error
           overwrite: true
@@ -53,5 +57,10 @@ jobs:
         run: |
           sha256sum -c music-recommender.jar.sha256
           test "$(java -jar music-recommender.jar --version)" = "$GITHUB_SHA"
+          grep -Fx "source.sha = $GITHUB_SHA" build-info.txt
+          grep -Fx 'java.vendor = Eclipse Adoptium' build-info.txt
+          grep -E '^java\.runtime\.version = 17[.+].+\+.+' build-info.txt
+          grep -E '^os\.arch = .+' build-info.txt
+          grep -E '^os\.name = .+' build-info.txt
           java -jar music-recommender.jar recommend maya --limit 1 > ranking.tsv
           test "$(cut -f1,2 ranking.tsv | sed -n '2p')" = $'1\tt03'
